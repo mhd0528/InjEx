@@ -12,7 +12,7 @@ import torch
 from torch import optim
 
 from kbc.datasets import Dataset
-from kbc.models import CP, ComplEx
+from kbc.models import CP, ComplEx, ComplEx_NNE
 from kbc.regularizers import F2, N3
 from kbc.optimizers import KBCOptimizer
 
@@ -29,7 +29,7 @@ parser.add_argument(
     help="Dataset in {}".format(datasets)
 )
 
-models = ['CP', 'ComplEx']
+models = ['CP', 'ComplEx', 'ComplEx_NNE']
 parser.add_argument(
     '--model', choices=models,
     help="Model in {}".format(models)
@@ -92,6 +92,7 @@ print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, args.init),
 }[args.model]()
 
 regularizer = {

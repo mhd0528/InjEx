@@ -139,6 +139,7 @@ class ComplEx(KBCModel):
         rel = rel[:, :self.rank], rel[:, self.rank:]
         rhs = rhs[:, :self.rank], rhs[:, self.rank:]
 
+        #original loss function
         return torch.sum(
             (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
             (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
@@ -146,6 +147,7 @@ class ComplEx(KBCModel):
         )
 
     def forward(self, x):
+        # ebd of left hand side, relation and right hand side of triples
         lhs = self.embeddings[0](x[:, 0])
         rel = self.embeddings[1](x[:, 1])
         rhs = self.embeddings[0](x[:, 2])
@@ -180,3 +182,100 @@ class ComplEx(KBCModel):
             lhs[0] * rel[0] - lhs[1] * rel[1],
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
+
+
+class ComplEx_NNE(KBCModel):
+    def __init__(
+            self, sizes: Tuple[int, int, int], rank: int,
+            init_size: float = 1e-3
+    ):
+        super(ComplEx_NNE, self).__init__()
+        self.sizes = sizes
+        self.rank = rank
+
+        self.embeddings = nn.ModuleList([
+            nn.Embedding(s, 2 * rank, sparse=True)
+            for s in sizes[:2]
+        ])
+        self.embeddings[0].weight.data *= init_size
+        self.embeddings[1].weight.data *= init_size
+
+    def score(self, x):
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        #original loss function
+        return torch.sum(
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+            1, keepdim=True
+        )
+
+    def forward(self, x):
+        # ebd of left hand side, relation and right hand side of triples
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        to_score = self.embeddings[0].weight
+        to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+        return (
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
+        ), (
+            torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+            torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+            torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+        )
+
+    def get_rhs(self, chunk_begin: int, chunk_size: int):
+        return self.embeddings[0].weight.data[
+            chunk_begin:chunk_begin + chunk_size
+        ].transpose(0, 1)
+
+    def get_queries(self, queries: torch.Tensor):
+        lhs = self.embeddings[0](queries[:, 0])
+        rel = self.embeddings[1](queries[:, 1])
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+
+        return torch.cat([
+            lhs[0] * rel[0] - lhs[1] * rel[1],
+            lhs[0] * rel[1] + lhs[1] * rel[0]
+        ], 1)
+    
+    def get_rules(self, dataset, embeddings):
+        # kbc_id_conf_f = './src_data/WN/kbc_id_cons.txt'
+        # read in rule ids and confidence
+        kbc_id_conf_f = dataset
+        r_p_list = []
+        r_q_list = []
+        conf_list = []
+        with open(kbc_id_conf_f, 'r') as f:
+            while True:
+                line = f.readline()
+                if line:
+                        # two relations split by ',', confidence split by tab
+                        r_p = line.split(',')[0]
+                        r_q = line.split(',')[1].split('\t')[0]
+                        conf = line.split('\t')[1]
+                        # print(rel0, rel1, conf)
+                        r_p_list.append(r_p)
+                        r_q_list.append(r_q)
+                        conf_list.append(conf)
+                else:
+                    break
+
+        rule_set = np.vstack((r_p_list, r_q_list, conf_list))
+        # print (len(rule_set))
+
+        # get embeddings for all r_p and r_q
