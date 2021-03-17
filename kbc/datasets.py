@@ -12,10 +12,11 @@ from typing import Dict, Tuple, List
 
 import numpy as np
 import torch
-from kbc.models import KBCModel
+from models import KBCModel
 
 
-DATA_PATH = Path(pkg_resources.resource_filename('kbc', 'data/'))
+# DATA_PATH = Path(pkg_resources.resource_filename('kbc', 'data/'))
+DATA_PATH = Path('/home/ComplEx-Inject/kbc/data/')
 
 
 class Dataset(object):

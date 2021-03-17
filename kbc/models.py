@@ -182,3 +182,99 @@ class ComplEx(KBCModel):
             lhs[0] * rel[0] - lhs[1] * rel[1],
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
+
+
+class ComplEx_NNE(KBCModel):
+    def __init__(
+            self, sizes: Tuple[int, int, int], rank: int,
+            rule_list: list, 
+            init_size: float = 1e-3, 
+            mu: float = 10.0
+    ):
+        super(ComplEx_NNE, self).__init__()
+        self.sizes = sizes
+        self.rank = rank
+        self.rule_list = rule_list
+
+        self.embeddings = nn.ModuleList([
+            nn.Embedding(s, 2 * rank, sparse=True)
+            for s in sizes[:2]
+        ])
+        self.embeddings[0].weight.data *= init_size
+        self.embeddings[1].weight.data *= init_size
+        self.mu = mu
+
+    def score(self, x):
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        #original loss function
+        return torch.sum(
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+            1, keepdim=True
+        )
+
+    def forward(self, x):
+        # ebd of left hand side, relation and right hand side of triples
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        to_score = self.embeddings[0].weight
+        to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+        return (
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
+        ), (
+            torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+            torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+            torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+        )
+
+    def get_rhs(self, chunk_begin: int, chunk_size: int):
+        return self.embeddings[0].weight.data[
+            chunk_begin:chunk_begin + chunk_size
+        ].transpose(0, 1)
+
+    def get_queries(self, queries: torch.Tensor):
+        lhs = self.embeddings[0](queries[:, 0])
+        rel = self.embeddings[1](queries[:, 1])
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+
+        return torch.cat([
+            lhs[0] * rel[0] - lhs[1] * rel[1],
+            lhs[0] * rel[1] + lhs[1] * rel[0]
+        ], 1)
+    
+    def get_rules_score(self):
+        # get embeddings for all r_p and r_q
+        rel = self.embeddings[1]
+        idx_p = torch.LongTensor(self.rule_list[0]).cuda()
+        idx_q = torch.LongTensor(self.rule_list[1]).cuda()
+
+        r_p_ebds = rel(idx_p)
+        r_p_ebds = r_p_ebds[:, :self.rank], r_p_ebds[:, self.rank:]
+        r_q_ebds = rel(idx_q)
+        r_q_ebds = r_q_ebds[:, :self.rank], r_q_ebds[:, self.rank:]
+
+        # # compute score of rules
+        score = 0
+        for i in range(len(r_p_ebds[0])):
+            score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), r_p_ebds[0][i] - r_q_ebds[0][i])) * self.rule_list[2][i]
+            score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
+
+        score *= self.mu
+        # score = factor[0] * score
+        print (score)
+        return score

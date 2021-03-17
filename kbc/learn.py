@@ -11,10 +11,10 @@ from typing import Dict
 import torch
 from torch import optim
 
-from kbc.datasets import Dataset
-from kbc.models import CP, ComplEx
-from kbc.regularizers import F2, N3
-from kbc.optimizers import KBCOptimizer
+from datasets import Dataset
+from models import CP, ComplEx, ComplEx_NNE
+from regularizers import F2, N3
+from optimizers import KBCOptimizer
 
 
 big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
@@ -29,7 +29,7 @@ parser.add_argument(
     help="Dataset in {}".format(datasets)
 )
 
-models = ['CP', 'ComplEx']
+models = ['CP', 'ComplEx', 'ComplEx_NNE']
 parser.add_argument(
     '--model', choices=models,
     help="Model in {}".format(models)
@@ -87,11 +87,35 @@ args = parser.parse_args()
 
 dataset = Dataset(args.dataset)
 examples = torch.from_numpy(dataset.get_train().astype('int64'))
+# used for rule injection
+rule_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset + '/kbc_id_cons.txt'
+# read in rule ids and confidence
+if args.model == 'ComplEx_NNE':
+    kbc_id_conf_f = rule_path
+    r_p_list = []
+    r_q_list = []
+    conf_list = []
+    with open(kbc_id_conf_f, 'r') as f:
+        while True:
+            line = f.readline()
+            if line:
+                    # two relations split by ',', confidence split by tab
+                    r_p = line.split(',')[0]
+                    r_q = line.split(',')[1].split('\t')[0]
+                    conf = line.split('\t')[1]
+                    # print(rel0, rel1, conf)
+                    r_p_list.append(int(r_p))
+                    r_q_list.append(int(r_q))
+                    conf_list.append(float(conf))
+            else:
+                break
+    rule_list = [r_p_list, r_q_list, conf_list]
 
 print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.0001),
 }[args.model]()
 
 regularizer = {

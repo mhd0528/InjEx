@@ -10,8 +10,9 @@ import torch
 from torch import nn
 from torch import optim
 
-from kbc.models import KBCModel
-from kbc.regularizers import Regularizer
+import models
+from models import KBCModel
+from regularizers import Regularizer
 
 
 class KBCOptimizer(object):
@@ -20,6 +21,9 @@ class KBCOptimizer(object):
             verbose: bool = True
     ):
         self.model = model
+        # if isinstance(model, models.ComplEx_NNE):
+        #     print ("type matched!!!")
+
         self.regularizer = regularizer
         self.optimizer = optimizer
         self.batch_size = batch_size
@@ -40,8 +44,12 @@ class KBCOptimizer(object):
                 truth = input_batch[:, 2]
 
                 l_fit = loss(predictions, truth)
+
                 l_reg = self.regularizer.forward(factors)
                 l = l_fit + l_reg
+                if isinstance(self.model, models.ComplEx_NNE):
+                    print ("add rule injection term to loss function")
+                    l_rule_constraint = self.model.get_rules_score()
 
                 self.optimizer.zero_grad()
                 l.backward()
