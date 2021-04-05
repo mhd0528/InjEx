@@ -6,10 +6,10 @@ import errno
 from pathlib import Path
 import pickle
 
-path = './src_data/'
+path = './src_data/FB237/'
 # generate string (if exists) to original id map
-rel_name_path = path + 'WN/original/'
-rel_origin_id_path = path + 'WN/'
+rel_name_path = path + 'original/'
+rel_origin_id_path = path 
 
 files = ['train', 'valid', 'test']
 relations_names = list()
@@ -90,13 +90,38 @@ with open(origin_conf_f, 'r') as f:
         if line:
                 # two relations split by ',', confidence split by tab
                 # losing information about '-' now
-                rel0 = line.split(',')[0].replace('-', '')
-                rel1 = line.split(',')[1].split('\t')[0].replace('-', '')
+                rel0 = line.split(',')[0]
+                rel1 = line.split(',')[1].split('\t')[0]
                 conf = line.split('\t')[1]
-                # print(rel0, rel1, conf)
-                rel_id0 = name2kbc_ids[rel0]
-                rel_id1 = name2kbc_ids[rel1]
-                kbc_id_conf_f.write(rel_id0 + ',' + rel_id1 + '\t' + conf)
+                rule_exist_flag = 1
+
+                if rel0[0] == '-':
+                    rel0 = rel0.replace('-', '')
+                    if rel0 in name2kbc_ids:
+                        rel_id0 = '-' + name2kbc_ids[rel0]
+                    else:
+                        rule_exist_flag = 0
+                else:
+                    if rel0 in name2kbc_ids:
+                        rel_id0 = name2kbc_ids[rel0]
+                    else:
+                        rule_exist_flag = 0
+                if rel1[0] == '-':
+                    rel1 = rel1.replace('-', '')
+                    if rel1 in name2kbc_ids:
+                        rel_id1 = '-' + name2kbc_ids[rel1]
+                    else:
+                        rule_exist_flag = 0
+                else:
+                    if rel1 in name2kbc_ids:
+                        rel_id1 = name2kbc_ids[rel1]
+                    else:
+                        rule_exist_flag = 0
+                if rule_exist_flag:
+                    # print(rel0, rel1, conf)
+                    kbc_id_conf_f.write(rel_id0 + ',' + rel_id1 + '\t' + conf)
+                else:
+                    print("relation doesn't exist: " + line)
         else:
             break
 kbc_id_conf_f.close()

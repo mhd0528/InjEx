@@ -39,21 +39,59 @@ class KBCOptimizer(object):
                 input_batch = actual_examples[
                     b_begin:b_begin + self.batch_size
                 ].cuda()
+                
+                #raise
 
                 predictions, factors = self.model.forward(input_batch)
                 truth = input_batch[:, 2]
 
                 l_fit = loss(predictions, truth)
+                
+                #print(torch.sum(torch.isnan(predictions)))
+
+                #print("type of l_fit: " + str(type(l_fit)))
 
                 l_reg = self.regularizer.forward(factors)
                 l = l_fit + l_reg
-                if isinstance(self.model, models.ComplEx_NNE):
-                    print ("add rule injection term to loss function")
-                    l_rule_constraint = self.model.get_rules_score()
+                #print("type of l: " + str(type(l)))
+                
 
+                if isinstance(self.model, models.ComplEx_NNE):
+                    mu_factor = (self.model.mu / torch.ceil( torch.Tensor([examples.shape[0]/ 1000]) )).cuda()
+                    #print ("add rule injection term to loss function")
+                    l_rule_constraint = self.model.get_rules_score()
+                    # print(type(l_rule_constraint))
+                    # print(type(mu_factor))
+                    # raise
+                    l_rule_constraint = mu_factor * l_rule_constraint
+                    # print("======> l_new: " + str(l_rule_constraint))
+                    l += l_rule_constraint.squeeze()
+
+                
                 self.optimizer.zero_grad()
                 l.backward()
                 self.optimizer.step()
+                with torch.no_grad():
+                    for param in self.model.parameters():
+                        if ((param.shape[0] == 14951)):
+                            #print(param.shape)
+                            #raise
+                            #temp = param.detach().clone()
+                            param.clamp_(1e-3, 1)
+                            #raise
+                
                 b_begin += self.batch_size
                 bar.update(input_batch.shape[0])
                 bar.set_postfix(loss=f'{l.item():.0f}')
+            
+            
+            
+            
+            
+            
+            
+            ########
+            
+            # 1) run with 1e-3 for 100 epochs
+            # 2*) check if there's still some nan values in the embeddings, when *only* putting the above constraints
+            # 3) run with rule injection and constraints

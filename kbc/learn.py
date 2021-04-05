@@ -16,6 +16,10 @@ from models import CP, ComplEx, ComplEx_NNE
 from regularizers import F2, N3
 from optimizers import KBCOptimizer
 
+from datetime import datetime
+
+
+torch.cuda.empty_cache()
 
 big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
 datasets = big_datasets
@@ -84,12 +88,15 @@ parser.add_argument(
     help="decay rate for second moment estimate in Adam"
 )
 args = parser.parse_args()
-
+print("\n=====> parameter settings: " + str(args))
 dataset = Dataset(args.dataset)
 examples = torch.from_numpy(dataset.get_train().astype('int64'))
-# used for rule injection
+######## used for rule injection
 rule_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset + '/kbc_id_cons.txt'
-# read in rule ids and confidence
+#### read in & convert rule ids and confidence
+# get number of predicates
+r_num = dataset.get_shape()[1]
+print (r_num)
 if args.model == 'ComplEx_NNE':
     kbc_id_conf_f = rule_path
     r_p_list = []
@@ -99,14 +106,22 @@ if args.model == 'ComplEx_NNE':
         while True:
             line = f.readline()
             if line:
-                    # two relations split by ',', confidence split by tab
-                    r_p = line.split(',')[0]
-                    r_q = line.split(',')[1].split('\t')[0]
-                    conf = line.split('\t')[1]
-                    # print(rel0, rel1, conf)
-                    r_p_list.append(int(r_p))
-                    r_q_list.append(int(r_q))
-                    conf_list.append(float(conf))
+                # two relations split by ',', confidence split by tab
+                line.replace('\n', '')
+                r_p = int(line.split(',')[0])
+                if r_p < 0:
+                    r_p = r_num // 2 - r_p
+                    # r_p = -r_p
+                r_q = int(line.split(',')[1].split('\t')[0])
+                if r_q < 0:
+                    r_q = r_num // 2 - r_q
+                    # r_q = r_q
+                conf = float(line.split('\t')[1])
+                # print(rel0, rel1, conf)
+                r_p_list.append(r_p)
+                r_q_list.append(r_q)
+                conf_list.append(conf)
+                # print(r_p, r_q, conf)
             else:
                 break
     rule_list = [r_p_list, r_q_list, conf_list]
@@ -115,7 +130,7 @@ print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.0001),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.001),
 }[args.model]()
 
 regularizer = {
@@ -165,5 +180,11 @@ for e in range(args.max_epochs):
         print("\t TRAIN: ", train)
         print("\t VALID : ", valid)
 
+        
+
+
+now = datetime.now()
+# time_stamp = str(now)[:19].replace(':','-')
+# torch.save((model,dataset), f'/home/ComplEx-Inject/saved_models/model_{time_stamp}.pkl')
 results = dataset.eval(model, 'test', -1)
 print("\n\nTEST : ", results)
