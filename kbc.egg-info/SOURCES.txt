@@ -2,6 +2,8 @@ README.md
 setup.py
 kbc/__init__.py
 kbc/datasets.py
+kbc/get_rules.py
+kbc/id_translate.py
 kbc/learn.py
 kbc/models.py
 kbc/optimizers.py
