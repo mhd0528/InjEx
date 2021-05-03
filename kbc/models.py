@@ -317,6 +317,7 @@ class ComplEx_NNE(KBCModel):
         self.embeddings[1].weight.data *= init_size
         #self.embeddings[1].weight.data += torch.abs(torch.min(self.embeddings[1].weight.data))
         self.mu = mu
+        print("======> mu value: " + str(self.mu))
 
     def score(self, x):
         lhs = self.embeddings[0](x[:, 0])

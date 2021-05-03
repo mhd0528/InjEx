@@ -65,29 +65,28 @@ class KBCOptimizer(object):
                     # raise
                     l_rule_constraint = mu_factor * l_rule_constraint
                     # print("======> l_new: " + str(l_rule_constraint))
+                    with open("loss_values.txt", "a") as myfile:
+                        myfile.write(f"({l},{l_rule_constraint.squeeze()}) \n")
                     l += l_rule_constraint.squeeze()
 
-                
                 self.optimizer.zero_grad()
                 l.backward()
                 self.optimizer.step()
-                with torch.no_grad():
-                    for param in self.model.parameters():
-                        if ((param.shape[0] == 14951)):
-                            #print(param.shape)
-                            #raise
-                            #temp = param.detach().clone()
-                            param.clamp_(1e-3, 1)
-                            #raise
+
+                # constraint on entity embeddings, should be only used for ComplEx_NNE
+                if isinstance(self.model, models.ComplEx_NNE):
+                    with torch.no_grad():
+                        for param in self.model.parameters():
+                            if ((param.shape[0] == 14951)):
+                                #print(param.shape)
+                                #raise
+                                #temp = param.detach().clone()
+                                param.clamp_(1e-3, 1)
+                                #raise
                 
                 b_begin += self.batch_size
                 bar.update(input_batch.shape[0])
                 bar.set_postfix(loss=f'{l.item():.0f}')
-            
-            
-            
-            
-            
             
             
             ########

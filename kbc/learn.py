@@ -130,7 +130,7 @@ print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.001),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 100),
 }[args.model]()
 
 regularizer = {
@@ -165,8 +165,9 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
+    if e == 70:
+        model.mu = 2 * model.mu
     cur_loss = optimizer.epoch(examples)
-
     if (e + 1) % args.valid == 0:
         valid, test, train = [
             avg_both(*dataset.eval(model, split, -1 if split != 'train' else 50000))
