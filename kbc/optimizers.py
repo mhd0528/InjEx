@@ -65,7 +65,7 @@ class KBCOptimizer(object):
                     # raise
                     l_rule_constraint = mu_factor * l_rule_constraint
                     # print("======> l_new: " + str(l_rule_constraint))
-                    with open("loss_values.txt", "a") as myfile:
+                    with open("loss_values_mu_100.txt", "a") as myfile:
                         myfile.write(f"({l},{l_rule_constraint.squeeze()}) \n")
                     l += l_rule_constraint.squeeze()
 
@@ -78,8 +78,8 @@ class KBCOptimizer(object):
                     with torch.no_grad():
                         for param in self.model.parameters():
                             if ((param.shape[0] == 14951)):
-                                #print(param.shape)
-                                #raise
+                                # print(param.shape)
+                                # raise
                                 #temp = param.detach().clone()
                                 param.clamp_(1e-3, 1)
                                 #raise

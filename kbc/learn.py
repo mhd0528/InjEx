@@ -102,6 +102,7 @@ if args.model == 'ComplEx_NNE':
     r_p_list = []
     r_q_list = []
     conf_list = []
+    neg_list = []
     with open(kbc_id_conf_f, 'r') as f:
         while True:
             line = f.readline()
@@ -110,12 +111,12 @@ if args.model == 'ComplEx_NNE':
                 line.replace('\n', '')
                 r_p = int(line.split(',')[0])
                 if r_p < 0:
-                    r_p = r_num // 2 - r_p
-                    # r_p = -r_p
+                    # print("ignore negative rules")
+                    neg_list.append(-1)
+                    r_p = -r_p
+                else:
+                    neg_list.append(1)
                 r_q = int(line.split(',')[1].split('\t')[0])
-                if r_q < 0:
-                    r_q = r_num // 2 - r_q
-                    # r_q = r_q
                 conf = float(line.split('\t')[1])
                 # print(rel0, rel1, conf)
                 r_p_list.append(r_p)
@@ -124,7 +125,7 @@ if args.model == 'ComplEx_NNE':
                 # print(r_p, r_q, conf)
             else:
                 break
-    rule_list = [r_p_list, r_q_list, conf_list]
+    rule_list = [r_p_list, r_q_list, conf_list, neg_list]
 
 print(dataset.get_shape())
 model = {
@@ -148,7 +149,9 @@ optim_method = {
 }[args.optimizer]()
 
 optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
-
+print("check model type")
+if not isinstance(optimizer.model, ComplEx_NNE):
+    print(1111111)
 
 def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
     """
@@ -166,7 +169,8 @@ cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
     if e == 70:
-        model.mu = 2 * model.mu
+        if isinstance(optimizer.model, ComplEx_NNE):
+            model.mu = 2 * model.mu
     cur_loss = optimizer.epoch(examples)
     if (e + 1) % args.valid == 0:
         valid, test, train = [
