@@ -52,7 +52,7 @@ for (name, original_id) in zip(relations_names, relations_original_ids):
 print(len(name2original_ids))
 
 # read in original_id to kbc_id dict
-origin_2_kbc_path = rel_origin_id_path + 'relation_origin_2_kbc_id.txt'
+origin_2_kbc_path = rel_origin_id_path + 'rel_origin_2_kbc_id.txt'
 origin_2_kbc_dict = dict()
 with open(origin_2_kbc_path, 'r') as f:
     while True:

@@ -183,117 +183,6 @@ class ComplEx(KBCModel):
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
 
-
-# class ComplEx_NNE(KBCModel):
-#     def __init__(
-#             self, sizes: Tuple[int, int, int], rank: int,
-#             rule_list: list, 
-#             init_size: float = 1e-3, 
-#             mu: float = 10.0
-#     ):
-#         super(ComplEx_NNE, self).__init__()
-#         self.sizes = sizes
-#         self.rank = rank
-#         self.rule_list = rule_list
-
-#         self.embeddings = nn.ModuleList([
-#             nn.Embedding(s, 2 * rank, sparse=True)
-#             for s in sizes[:2]
-#         ])
-#         self.embeddings[0].weight.data *= init_size
-#         self.embeddings[1].weight.data *= init_size
-#         self.mu = mu
-
-#     def score(self, x):
-#         lhs = torch.clamp(self.embeddings[0](x[:, 0]), 0 , 1)
-#         rel = self.embeddings[1](x[:, 1])
-#         rhs = torch.clamp(self.embeddings[0](x[:, 2]), 0 , 1)
-
-#         lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-#         rel = rel[:, :self.rank], rel[:, self.rank:]
-#         rhs = rhs[:, :self.rank], rhs[:, self.rank:]
-
-#         #original loss function
-#         return torch.sum(
-#             (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
-#             (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
-#             1, keepdim=True
-#         )
-
-#     def forward(self, x):
-#         # ebd of left hand side, relation and right hand side of triples
-#         lhs = torch.clamp(self.embeddings[0](x[:, 0]), 0 , 1)
-#         rel = self.embeddings[1](x[:, 1])
-#         rhs = torch.clamp(self.embeddings[0](x[:, 2]), 0 ,1)
-#         # print(x[:, 1])
-        
-#         check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
-#         if check_nan > 0 :
-#             print(torch.isnan(rel[0]))
-#             print("number of relations: " + str(len(rel[0])))
-#             print ("have nan value in forward embedding: " + str(check_nan))
-
-#         lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-#         rel = rel[:, :self.rank], rel[:, self.rank:]
-#         rhs = rhs[:, :self.rank], rhs[:, self.rank:]
-
-#         to_score = torch.clamp(self.embeddings[0].weight, 0 , 1)
-#         to_score = to_score[:, :self.rank], to_score[:, self.rank:]
-#         return (
-#             (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
-#             (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
-#         ), (
-#             torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
-#             torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
-#             torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
-#         )
-
-#     def get_rhs(self, chunk_begin: int, chunk_size: int):
-#         return torch.clamp(self.embeddings[0].weight.data[
-#             chunk_begin:chunk_begin + chunk_size
-#         ].transpose(0, 1), 0, 1)
-
-#     def get_queries(self, queries: torch.Tensor):
-#         lhs = torch.clamp(self.embeddings[0](queries[:, 0]), 0 ,1)
-#         rel = self.embeddings[1](queries[:, 1])
-#         lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-#         rel = rel[:, :self.rank], rel[:, self.rank:]
-
-#         return torch.cat([
-#             lhs[0] * rel[0] - lhs[1] * rel[1],
-#             lhs[0] * rel[1] + lhs[1] * rel[0]
-#         ], 1)
-    
-#     def get_rules_score(self):
-#         # get embeddings for all r_p and r_q
-#         rel = self.embeddings[1]
-#         idx_p = torch.LongTensor(self.rule_list[0]).cuda()
-#         idx_q = torch.LongTensor(self.rule_list[1]).cuda()
-#         print(torch.max(idx_p))
-
-#         r_p_ebds = rel(idx_p)
-#         r_p_ebds = r_p_ebds[:, :self.rank], r_p_ebds[:, self.rank:]
-#         r_q_ebds = rel(idx_q)
-#         r_q_ebds = r_q_ebds[:, :self.rank], r_q_ebds[:, self.rank:]
-
-#         check_nan = torch.sum(torch.isnan(r_p_ebds[0]))
-#         if check_nan > 0 :
-#             print(torch.isnan(r_p_ebds[0]))
-#             print ("number of relations: " + str(len(r_p_ebds[0])))
-#             print ("have nan value in rule score embedding: " + str(check_nan))
-
-#         # # compute score of rules
-#         score = 0
-#         for i in range(len(r_p_ebds[0])):
-#             score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), r_p_ebds[0][i] - r_q_ebds[0][i])) * self.rule_list[2][i]
-#             score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
-
-#         #score *= self.mu
-#         # score = factor[0] * score
-#         print (score)
-#         return score
-
-
 class ComplEx_NNE(KBCModel):
     def __init__(
             self, sizes: Tuple[int, int, int], rank: int,
@@ -317,6 +206,158 @@ class ComplEx_NNE(KBCModel):
         self.embeddings[1].weight.data *= init_size
         #self.embeddings[1].weight.data += torch.abs(torch.min(self.embeddings[1].weight.data))
         self.mu = mu
+        print("======> mu value: " + str(self.mu))
+
+    def score(self, x):
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        #original loss function
+        return torch.sum(
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+            1, keepdim=True
+        )
+
+    def forward(self, x):
+        # ebd of left hand side, relation and right hand side of triples
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+        # print(x[:, 1])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+        
+        check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
+        if check_nan > 0 :
+            #print(torch.isnan(rel[0]))
+            print("number of triples: " + str(len(rel[0])))
+            print ("have nan value in forward embedding: " + str(check_nan))
+
+        to_score = self.embeddings[0].weight
+        to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+        return (
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
+        ), (
+            torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+            torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+            torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+        )
+
+    # def forward(self, x):
+    #     # ebd of left hand side, relation and right hand side of triples
+    #     lhs = torch.clamp(self.embeddings[0](x[:, 0]), 0 , 1)
+    #     print (self.embeddings[0](x[:, 0]))
+    #     print (lhs)
+    #     rel = self.embeddings[1](x[:, 1])
+    #     rhs = torch.clamp(self.embeddings[0](x[:, 2]), 0 ,1)
+    #     # print(x[:, 1])
+        
+    #     check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
+    #     if check_nan > 0 :
+    #         # print("number of relations: " + str(len(rel[0])))
+    #         print ("have nan value in forward embedding: " + str(check_nan))
+    #         print(torch.isnan(rel[0]))
+
+    #     lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+    #     rel = rel[:, :self.rank], rel[:, self.rank:]
+    #     rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+    #     to_score = torch.clamp(self.embeddings[0].weight, 0 , 1)
+    #     to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+    #     return (
+    #         (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+    #         (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
+    #     ), (
+    #         torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+    #         torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+    #         torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+    #     )
+
+    def get_rhs(self, chunk_begin: int, chunk_size: int):
+        return self.embeddings[0].weight.data[
+            chunk_begin:chunk_begin + chunk_size
+        ].transpose(0, 1)
+
+    def get_queries(self, queries: torch.Tensor):
+        lhs = self.embeddings[0](queries[:, 0])
+        rel = self.embeddings[1](queries[:, 1])
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+
+        return torch.cat([
+            lhs[0] * rel[0] - lhs[1] * rel[1],
+            lhs[0] * rel[1] + lhs[1] * rel[0]
+        ], 1)
+
+    def get_rules_score(self):
+        # get embeddings for all r_p and r_q
+        rel = self.embeddings[1]
+        idx_p = torch.LongTensor(self.rule_list[0]).cuda()
+        idx_q = torch.LongTensor(self.rule_list[1]).cuda()
+        #print(torch.max(idx_p))
+
+        r_p_ebds = rel(idx_p)
+        r_p_ebds = r_p_ebds[:, :self.rank], r_p_ebds[:, self.rank:]
+        r_q_ebds = rel(idx_q)
+        r_q_ebds = r_q_ebds[:, :self.rank], r_q_ebds[:, self.rank:]
+
+        check_nan = torch.sum(torch.isnan(r_p_ebds[0]))
+        if check_nan > 0 :
+            # print ("number of relations: " + str(len(r_p_ebds[0])))
+            print ("have nan value in rule score embedding: " + str(check_nan))
+            print(torch.isnan(r_p_ebds[0]))
+
+        # compute score of rules
+        score = 0
+        # print("======> number of rules: " + str(len(r_p_ebds[0])))
+        for i in range(len(r_p_ebds[0])):
+            score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), r_p_ebds[0][i] - r_q_ebds[0][i])) * self.rule_list[2][i]
+            if self.rule_list[3][i] < 0:
+                # r_q_ebds[1][i] = -r_q_ebds[1][i]
+                score += torch.sum(torch.square(r_p_ebds[1][i] + r_q_ebds[1][i])) * self.rule_list[2][i]
+                # continue
+            else:
+                score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
+
+        # score *= self.mu
+        # score = factor[0] * score
+        # print (score)
+        return score
+
+class ComplEx_logicNN(KBCModel):
+    def __init__(
+            self, sizes: Tuple[int, int, int], rank: int,
+            rule_list: list, 
+            init_size: float = 1e-3,
+            C: float = 6,
+            rule_feas: list = [],
+            pi_params: list = [0.95, 0]
+    ):
+        super(ComplEx_logicNN, self).__init__()
+        self.sizes = sizes
+        self.rank = rank
+        self.rule_list = rule_list
+        self.C = C
+        self.rule_feas = rule_feas
+        self.pi_params = pi_params
+
+        self.embeddings = nn.ModuleList([
+            nn.Embedding(s, 2 * rank, sparse=True)
+            for s in sizes[:2]
+        ])
+        # check_nan = torch.sum(torch.isnan(self.embeddings[0].weight.data))
+        # print ("have nan value in weight: " + str(check_nan))
+        self.embeddings[0].weight.data *= init_size
+        self.embeddings[1].weight.data *= init_size
 
     def score(self, x):
         lhs = self.embeddings[0](x[:, 0])
@@ -362,36 +403,6 @@ class ComplEx_NNE(KBCModel):
             torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
         )
 
-#     def forward(self, x):
-#         # ebd of left hand side, relation and right hand side of triples
-#         lhs = torch.clamp(self.embeddings[0](x[:, 0]), 0 , 1)
-#         print (self.embeddings[0](x[:, 0]))
-#         print (lhs)
-#         rel = self.embeddings[1](x[:, 1])
-#         rhs = torch.clamp(self.embeddings[0](x[:, 2]), 0 ,1)
-#         # print(x[:, 1])
-        
-#         check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
-#         if check_nan > 0 :
-#             # print("number of relations: " + str(len(rel[0])))
-#             print ("have nan value in forward embedding: " + str(check_nan))
-#             print(torch.isnan(rel[0]))
-
-#         lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-#         rel = rel[:, :self.rank], rel[:, self.rank:]
-#         rhs = rhs[:, :self.rank], rhs[:, self.rank:]
-
-#         to_score = torch.clamp(self.embeddings[0].weight, 0 , 1)
-#         to_score = to_score[:, :self.rank], to_score[:, self.rank:]
-#         return (
-#             (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
-#             (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
-#         ), (
-#             torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
-#             torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
-#             torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
-#         )
-
     def get_rhs(self, chunk_begin: int, chunk_size: int):
         return self.embeddings[0].weight.data[
             chunk_begin:chunk_begin + chunk_size
@@ -408,31 +419,51 @@ class ComplEx_NNE(KBCModel):
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
 
-    def get_rules_score(self):
-        # get embeddings for all r_p and r_q
+    # apply teacher "network" to generate penalty
+    # currently, a grounding of a rule is just ebd of ra and rb
+    # constraints follow Ding's paper
+    def get_rules_pred(self, batch_fea, rule_conf, rule_inv):
+        ent = self.embeddings[0]
         rel = self.embeddings[1]
-        idx_p = torch.LongTensor(self.rule_list[0]).cuda()
-        idx_q = torch.LongTensor(self.rule_list[1]).cuda()
-        #print(torch.max(idx_p))
 
-        r_p_ebds = rel(idx_p)
-        r_p_ebds = r_p_ebds[:, :self.rank], r_p_ebds[:, self.rank:]
-        r_q_ebds = rel(idx_q)
-        r_q_ebds = r_q_ebds[:, :self.rank], r_q_ebds[:, self.rank:]
+        rule_pred = torch.zeros(len(batch_fea)).cuda()
+        # for each triple pair, compute and compare their score
+        for i, ((e1, head, e2), (e1, tail, e2)) in enumerate(batch_fea):
+            e1 = torch.LongTensor([e1]).cuda()
+            head = torch.LongTensor([head]).cuda()
+            tail = torch.LongTensor([tail]).cuda()
+            e2 = torch.LongTensor([e2]).cuda()
+            
+            triple_lhs = ent(e1)
+            rule_head = rel(head)
+            rule_tail = rel(tail)
+            triple_rhs = ent(e2)
 
-        check_nan = torch.sum(torch.isnan(r_p_ebds[0]))
-        if check_nan > 0 :
-            # print ("number of relations: " + str(len(r_p_ebds[0])))
-            print ("have nan value in rule score embedding: " + str(check_nan))
-            print(torch.isnan(r_p_ebds[0]))
+            triple_lhs = triple_lhs[:, :self.rank], triple_lhs[:, self.rank:]
+            rule_head = rule_head[:, :self.rank], rule_head[:, self.rank:]
+            rule_tail = rule_tail[:, :self.rank], rule_tail[:, self.rank:]
+            triple_rhs = triple_rhs[:, :self.rank], triple_rhs[:, self.rank:]
 
-        # # compute score of rules
-        score = 0
-        for i in range(len(r_p_ebds[0])):
-            score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), r_p_ebds[0][i] - r_q_ebds[0][i])) * self.rule_list[2][i]
-            score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
-
-        #score *= self.mu
-        # score = factor[0] * score
-        # print (score)
-        return score
+            score_h = torch.sum(
+                    (triple_lhs[0] * rule_head[0] - triple_lhs[1] * rule_head[1]) * triple_rhs[0] +
+                    (triple_lhs[0] * rule_head[1] + triple_lhs[1] * rule_head[0]) * triple_rhs[1],
+                    1, keepdim=True
+                )
+            if not rule_inv:
+                score_t =torch.sum(
+                        (triple_lhs[0] * rule_tail[0] - triple_lhs[1] * rule_tail[1]) * triple_rhs[0] +
+                        (triple_lhs[0] * rule_tail[1] + triple_lhs[1] * rule_tail[0]) * triple_rhs[1],
+                        1, keepdim=True
+                    )
+            else:
+                score_t = torch.sum(
+                        (triple_rhs[0] * rule_tail[0] - triple_rhs[1] * rule_tail[1]) * triple_lhs[0] +
+                        (triple_rhs[0] * rule_tail[1] + triple_rhs[1] * rule_tail[0]) * triple_lhs[1],
+                        1, keepdim=True
+                    )
+            # if the rule holds, score_t > score_h should hold
+            # if score_t > score_h:
+            rule_pred[i] = score_t - score_h
+        rule_pred = torch.tensor(rule_pred).cuda()
+        rule_pred = rule_pred / torch.sum(rule_pred)
+        return rule_pred

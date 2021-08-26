@@ -10,6 +10,7 @@ from typing import Dict
 
 import torch
 from torch import optim
+import numpy as np
 
 from datasets import Dataset
 from models import CP, ComplEx, ComplEx_NNE
@@ -21,7 +22,7 @@ from datetime import datetime
 
 torch.cuda.empty_cache()
 
-big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', 'family']
 datasets = big_datasets
 
 parser = argparse.ArgumentParser(
@@ -88,20 +89,24 @@ parser.add_argument(
     help="decay rate for second moment estimate in Adam"
 )
 args = parser.parse_args()
-print("\n=====> parameter settings: " + str(args))
+print("\n======> Parameter settings: " + str(args))
 dataset = Dataset(args.dataset)
 examples = torch.from_numpy(dataset.get_train().astype('int64'))
+# print("\n======> Number of training triples: " + str(examples.size()))
+
 ######## used for rule injection
-rule_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset + '/kbc_id_cons.txt'
+rule_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset + '/cons.txt'
 #### read in & convert rule ids and confidence
 # get number of predicates
-r_num = dataset.get_shape()[1]
-print (r_num)
+r_num = dataset.get_shape()[1] // 2
+print ("\n======> Number of relations: " + str(r_num))
+
 if args.model == 'ComplEx_NNE':
     kbc_id_conf_f = rule_path
     r_p_list = []
     r_q_list = []
     conf_list = []
+    neg_list = []
     with open(kbc_id_conf_f, 'r') as f:
         while True:
             line = f.readline()
@@ -110,12 +115,14 @@ if args.model == 'ComplEx_NNE':
                 line.replace('\n', '')
                 r_p = int(line.split(',')[0])
                 if r_p < 0:
-                    r_p = r_num // 2 - r_p
-                    # r_p = -r_p
+                    # print("ignore negative rules")
+                    neg_list.append(-1)
+                    r_p = -r_p
+                    if r_p >= r_num:
+                        print("suspicious relation id: " + str(r_p))
+                else:
+                    neg_list.append(1)
                 r_q = int(line.split(',')[1].split('\t')[0])
-                if r_q < 0:
-                    r_q = r_num // 2 - r_q
-                    # r_q = r_q
                 conf = float(line.split('\t')[1])
                 # print(rel0, rel1, conf)
                 r_p_list.append(r_p)
@@ -124,13 +131,14 @@ if args.model == 'ComplEx_NNE':
                 # print(r_p, r_q, conf)
             else:
                 break
-    rule_list = [r_p_list, r_q_list, conf_list]
+    rule_list = [r_p_list, r_q_list, conf_list, neg_list]
+    print(rule_list)
 
 print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.001),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 10),
 }[args.model]()
 
 regularizer = {
@@ -149,7 +157,6 @@ optim_method = {
 
 optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
 
-
 def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
     """
     aggregate metrics for missing lhs and rhs
@@ -161,11 +168,20 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
     h = (hits['lhs'] + hits['rhs']) / 2.
     return {'MRR': m, 'hits@[1,3,10]': h}
 
+print("======> Checking model type")
+if isinstance(optimizer.model, ComplEx_NNE):
+    init_mu = model.mu
+    print('model is complex-nne')
 
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
-    cur_loss = optimizer.epoch(examples)
+    if (e == 30) or (e == 70):
+        if isinstance(optimizer.model, ComplEx_NNE):
+            model.mu = 2 * model.mu
+    # cur_loss = optimizer.epoch(examples)
+    cur_loss = optimizer.epoch_2(examples, dataset)
+
 
     if (e + 1) % args.valid == 0:
         valid, test, train = [
@@ -180,11 +196,58 @@ for e in range(args.max_epochs):
         print("\t TRAIN: ", train)
         print("\t VALID : ", valid)
 
-        
-
 
 now = datetime.now()
-# time_stamp = str(now)[:19].replace(':','-')
-# torch.save((model,dataset), f'/home/ComplEx-Inject/saved_models/model_{time_stamp}.pkl')
+time_stamp = str(now)[:19].replace(':','-').replace(' ', '_')
+# write relation embeddings of each rule at the end
+if isinstance(optimizer.model, ComplEx_NNE):
+    all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_real_compare' + '.txt'
+    all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_img_compare' + '.txt'
+    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '.pkl'
+else:
+    all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_real_compare' + '.txt'
+    all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_img_compare' + '.txt'
+    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '.pkl'
+
+
+# real_file = open(all_rules_real_path, "a")
+# img_file = open(all_rules_img_path, "a")
+
+# rel = optimizer.model.embeddings[1]
+# idx_p = torch.LongTensor(rule_list[0]).cuda()
+# idx_q = torch.LongTensor(rule_list[1]).cuda()
+# #print(torch.max(idx_p))
+
+# r_p_ebds = rel(idx_p)
+# r_p_ebds = r_p_ebds[:, :optimizer.model.rank], r_p_ebds[:, optimizer.model.rank:]
+# r_q_ebds = rel(idx_q)
+# r_q_ebds = r_q_ebds[:, :optimizer.model.rank], r_q_ebds[:, optimizer.model.rank:]
+# img_difference = []
+# rel_difference = []
+# for i in range(len(rule_list[0])):
+#     # for all rules, real(r_p) < real(r_q)
+#     p_lt_q = torch.lt(r_p_ebds[0][i], r_q_ebds[0][i]).tolist()
+#     real_file.write(', '.join(map(str, p_lt_q)) + '\n')
+#     rel_difference.append(torch.sum(torch.abs(r_p_ebds[0][i] - r_q_ebds[0][i])).item())
+#     # for negative entailment rules, img(r_p) == -img(r_q), calculate the difference
+#     if rule_list[3][i] < 0:
+#         img_tensor = torch.square(r_p_ebds[1][i] + r_q_ebds[1][i])
+#         img_file.write(', '.join(map(str, img_tensor.tolist())) + '\n')
+#         img_difference.append(torch.sum(img_tensor).item())
+#     # for entailment rules, img(r_p) == img(r_q), calculate the difference
+#     else:
+#         img_tensor = torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])
+#         img_file.write(','.join(map(str, img_tensor.tolist())) + '\n')
+#         img_difference.append(torch.sum(img_tensor).item())
+
+# img_file.write('======> imaginary part difference on each rule: ' + ', '.join(map(str, img_difference)) + '\n')
+# img_file.write('======> imaginary part difference on all rules: ' + str(np.sum(img_difference)) + '\n')
+# real_file.write('======> real part difference on each rule: ' + ', '.join(map(str, rel_difference)) + '\n')
+# real_file.write('======> real part difference on all rules: ' + str(np.sum(rel_difference)) + '\n')
+# real_file.close()
+# img_file.close()
+
+# model_path = '/home/ComplEx-Inject/saved_models/' + args.model + '_' + args.dataset + '_mu_' + str(model.mu) + '_' + time_stamp + '.pkl'
 results = dataset.eval(model, 'test', -1)
+torch.save((model,dataset), model_path)
 print("\n\nTEST : ", results)
