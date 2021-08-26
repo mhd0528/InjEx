@@ -6,7 +6,7 @@ import errno
 from pathlib import Path
 import pickle
 
-path = './src_data/FB237/'
+path = './src_data/FB15K/'
 # generate string (if exists) to original id map
 rel_name_path = path + 'original/'
 rel_origin_id_path = path 
