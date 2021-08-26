@@ -28,6 +28,14 @@ class Dataset(object):
             in_file = open(str(self.root / (f + '.pickle')), 'rb')
             self.data[f] = pickle.load(in_file)
 
+        # select certain percentage of training data
+        total_train = len(self.data['train'])
+        train_percent = 0.05
+        train_idx = int(total_train * train_percent)
+        print("original training number: " + str(total_train))
+        # self.data['train'] = self.data['train'][train_idx : train_idx * 2]
+        print("sample training number: " + str(len(self.data['train'])))
+        
         maxis = np.max(self.data['train'], axis=0)
         self.n_entities = int(max(maxis[0], maxis[2]) + 1)
         self.n_predicates = int(maxis[1] + 1)
@@ -46,7 +54,8 @@ class Dataset(object):
         copy[:, 0] = copy[:, 2]
         copy[:, 2] = tmp
         copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
-        return np.vstack((self.data['train'], copy))
+        # return np.vstack((self.data['train'], copy))
+        return self.data['train']
 
     def eval(
             self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',
@@ -77,8 +86,69 @@ class Dataset(object):
                 lambda x: torch.mean((ranks <= x).float()).item(),
                 at
             ))))
+        print("# of triples in ranking: " + str(len(ranks)))
 
         return mean_reciprocal_rank, hits_at
 
     def get_shape(self):
         return self.n_entities, self.n_predicates, self.n_entities
+    
+    def rank_result(
+            self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',
+            at: Tuple[int] = (1, 3, 10)
+    ):
+        test = self.get_examples(split)
+        examples = torch.from_numpy(test.astype('int64')).cuda()
+        missing = [missing_eval]
+        if missing_eval == 'both':
+            missing = ['rhs', 'lhs']
+
+        rank_res = []
+        for m in missing:
+            q = examples.clone()
+            if n_queries > 0:
+                permutation = torch.randperm(len(examples))[:n_queries]
+                q = examples[permutation]
+            if m == 'lhs':
+                tmp = torch.clone(q[:, 0])
+                q[:, 0] = q[:, 2]
+                q[:, 2] = tmp
+                q[:, 1] += self.n_predicates // 2
+            ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
+            rank_res.append(ranks)
+
+        return rank_res
+
+    def generateHeadNegTriple(self, m_NumNeg, triple):
+        iPosHead = triple[0]
+        iPosTail = triple[2]
+        iPosRelation = triple[1]
+        iNumberOfEntities = self.get_shape()[0]		
+		
+        NegativeTripleSet = set()		
+        while (len(NegativeTripleSet) < m_NumNeg):
+            iNegHead = iPosHead
+            NegativeTriple = (iNegHead, iPosRelation.data, iPosTail.data)
+            while (iNegHead == iPosHead):
+                iNegHead = np.random.randint(iNumberOfEntities)
+                NegativeTriple = (iNegHead, int(iPosRelation.data), int(iPosTail.data))
+                # print('new triple generated: ' + str(NegativeTriple))
+            NegativeTripleSet.add(NegativeTriple)
+        return NegativeTripleSet
+
+    def generateTailNegTriple(self, m_NumNeg, triple):
+        iPosHead = triple[0]
+        iPosTail = triple[2]
+        iPosRelation = triple[1]
+        iNumberOfEntities = self.get_shape()[0]		
+		
+        NegativeTripleSet = set()		
+        while (len(NegativeTripleSet) < m_NumNeg):
+            iNegTail = iPosTail
+            NegativeTriple = (iPosHead.data, iPosRelation.data, iNegTail)
+            while (iNegTail == iPosTail):
+                iNegTail = np.random.randint(iNumberOfEntities)
+                NegativeTriple = (int(iPosHead.data), int(iPosRelation.data), iNegTail)
+            NegativeTripleSet.add(NegativeTriple)
+
+        return NegativeTripleSet

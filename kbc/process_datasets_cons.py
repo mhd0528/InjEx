@@ -18,6 +18,28 @@ from collections import defaultdict
 # DATA_PATH = './data/'
 DATA_PATH = Path('/home/ComplEx-Inject/kbc/data/')
 
+def translate_cons(dataset, path):
+    rel2id = {}
+    with open(str(DATA_PATH) + '/' + dataset+'/rel_id') as f:
+        for i,line in enumerate(f):
+            rel = line.split('\t')[0]
+            rel_id = int(line.split('\t')[1])
+            rel2id[rel] = rel_id
+    # with open(path+'/_cons.txt') as f,open(path+'/cons.txt','w') as out, open(path+'/_237cons.txt', 'w') as out2:
+    with open(path+'/_cons.txt') as f,open(path+'/cons.txt','w') as out:
+        for line in f:
+            rule_str, conf = line.strip().split()
+            body,head = rule_str.split(',')
+            prefix = ''
+            if '-' in body:
+                prefix = '-'
+                body = body[1:]
+            try:
+                rule = prefix + str(rel2id[body])+','+str(rel2id[head])
+                out.write('%s\t%s\n' % (rule,conf))
+                # out2.write(line)
+            except KeyError:
+                print("rule not found: " + line)
 
 def prepare_dataset(path, name):
     """
@@ -33,7 +55,7 @@ def prepare_dataset(path, name):
     files = ['train', 'valid', 'test']
     entities, relations = set(), set()
     for f in files:
-        file_path = os.path.join(path, f)
+        file_path = os.path.join(path+'/original/', f)
         to_read = open(file_path, 'r')
         for line in to_read.readlines():
             lhs, rel, rhs = line.strip().split('\t')
@@ -41,21 +63,9 @@ def prepare_dataset(path, name):
             entities.add(rhs)
             relations.add(rel)
         to_read.close()
-
+    # print (entities)
     entities_to_id = {x: i for (i, x) in enumerate(sorted(entities))}
     relations_to_id = {x: i for (i, x) in enumerate(sorted(relations))}
-    
-    # save id to entity/relation name map to files
-    entity_f = os.path.join(path, 'ent_origin_2_kbc_id.txt')
-    rel_f = os.path.join(path, 'rel_origin_2_kbc_id.txt')
-    ent_out_f = open(entity_f, mode='w+', encoding='utf-8')
-    for key in entities_to_id:
-        ent_out_f.write(key + '\t' + str(entities_to_id[key]) + '\n')
-    
-    rel_out_f = open(rel_f, mode='w+', encoding='utf-8')
-    for key in relations_to_id:
-        rel_out_f.write(key + '\t' + str(relations_to_id[key]) + '\n')
-
     print("{} entities and {} relations".format(len(entities), len(relations)))
     n_relations = len(relations)
     n_entities = len(entities)
@@ -69,7 +79,7 @@ def prepare_dataset(path, name):
 
     # map train/test/valid with the ids
     for f in files:
-        file_path = os.path.join(path, f)
+        file_path = os.path.join(path+'/original/', f)
         to_read = open(file_path, 'r')
         examples = []
         for line in to_read.readlines():
@@ -118,10 +128,14 @@ def prepare_dataset(path, name):
     out = open(Path(DATA_PATH) / name / 'probas.pickle', 'wb')
     pickle.dump(counters, out)
     out.close()
+    
+    # translate rules
+    translate_cons(name, path)
 
 
 if __name__ == "__main__":
-    datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', 'family']
+    # datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+    datasets = ['FB15K', 'FB237']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:
@@ -137,4 +151,3 @@ if __name__ == "__main__":
                 print("File exists. skipping...")
             else:
                 raise
-
