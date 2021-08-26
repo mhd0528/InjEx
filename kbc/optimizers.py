@@ -80,7 +80,6 @@ class KBCOptimizer(object):
                     # raise
                     l_rule_constraint = mu_factor * l_rule_constraint
                     # print("======> l_new: " + str(l_rule_constraint))
-<<<<<<< HEAD
                     # with open("237_conjugate_loss_values_mu_10.txt", "a") as myfile:
                     #     myfile.write(f"({l},{l_rule_constraint.squeeze()}) \n")
                     l += l_rule_constraint.squeeze()
@@ -107,16 +106,9 @@ class KBCOptimizer(object):
                             # print("======> rule_penalty: " + str(rule_pen))
                             l = (1-self.pi) * l + self.pi * rule_pen
 
-=======
-                    with open("loss_values_mu_100.txt", "a") as myfile:
-                        myfile.write(f"({l},{l_rule_constraint.squeeze()}) \n")
-                    l += l_rule_constraint.squeeze()
->>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
-
                 self.optimizer.zero_grad()
                 l.backward()
                 self.optimizer.step()
-<<<<<<< HEAD
                 # constraint on entity embeddings, should be used for ComplEx_NNE and ComplEx_logicNN
                 # round only entity embeddings, only < 0 or > 1, others stay the same
                 if isinstance(self.model, models.ComplEx_NNE) or isinstance(self.model, models.ComplEx_logicNN):
@@ -132,24 +124,10 @@ class KBCOptimizer(object):
                         # all_idx = [i for i in range(self.model.embeddings[0].num_embeddings)]
                         # all_idx = torch.LongTensor(self.all_idx).cuda()
                         # tmp = self.model.embeddings[0](all_idx)
-=======
-
-                # constraint on entity embeddings, should be only used for ComplEx_NNE
-                if isinstance(self.model, models.ComplEx_NNE):
-                    with torch.no_grad():
-                        for param in self.model.parameters():
-                            if ((param.shape[0] == 14951)):
-                                # print(param.shape)
-                                # raise
-                                #temp = param.detach().clone()
-                                param.clamp_(1e-3, 1)
-                                #raise
->>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
                 
                 b_begin += self.batch_size
                 bar.update(input_batch.shape[0])
                 bar.set_postfix(loss=f'{l.item():.0f}')
-<<<<<<< HEAD
 
     def epoch_2(self, examples: torch.LongTensor, dataset):
         actual_examples = examples[torch.randperm(examples.shape[0]), :]
@@ -263,12 +241,3 @@ class KBCOptimizer(object):
                 b_begin += self.batch_size
                 bar.update(input_batch.shape[0])
                 bar.set_postfix(loss=f'{l.item():.0f}')
-=======
-            
-            
-            ########
-            
-            # 1) run with 1e-3 for 100 epochs
-            # 2*) check if there's still some nan values in the embeddings, when *only* putting the above constraints
-            # 3) run with rule injection and constraints
->>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
