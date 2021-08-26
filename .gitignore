@@ -1,0 +1,14 @@
+# ignore result txt files
+result/*
+
+# ignore certain data files
+kbc/src_data/FB237/original/MSR-LA_Data_Full Rights_FB15K-237 Knowledge Base Completion Dataset (2650).docx
+kbc/src_data/FB237/original/text_cvsc.txt
+kbc/src_data/FB237/original/text_emnlp.txt
+
+# ignore jupyter lab and notebook scripts
+.ipynb_checkpoints/
+kbc/.ipynb_checkpoints/
+kbc/__pycache__/
+Untitled.ipynb
+
