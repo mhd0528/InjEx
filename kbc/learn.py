@@ -118,8 +118,11 @@ if args.model == 'ComplEx_NNE':
                     # print("ignore negative rules")
                     neg_list.append(-1)
                     r_p = -r_p
+<<<<<<< HEAD
                     if r_p >= r_num:
                         print("suspicious relation id: " + str(r_p))
+=======
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
                 else:
                     neg_list.append(1)
                 r_q = int(line.split(',')[1].split('\t')[0])
@@ -132,13 +135,20 @@ if args.model == 'ComplEx_NNE':
             else:
                 break
     rule_list = [r_p_list, r_q_list, conf_list, neg_list]
+<<<<<<< HEAD
     print(rule_list)
+=======
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
 
 print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+<<<<<<< HEAD
     'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 10),
+=======
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 100),
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
 }[args.model]()
 
 regularizer = {
@@ -156,6 +166,12 @@ optim_method = {
 }[args.optimizer]()
 
 optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
+<<<<<<< HEAD
+=======
+print("check model type")
+if not isinstance(optimizer.model, ComplEx_NNE):
+    print(1111111)
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
 
 def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
     """
@@ -176,6 +192,7 @@ if isinstance(optimizer.model, ComplEx_NNE):
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
+<<<<<<< HEAD
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, ComplEx_NNE):
             model.mu = 2 * model.mu
@@ -183,6 +200,12 @@ for e in range(args.max_epochs):
     cur_loss = optimizer.epoch_2(examples, dataset)
 
 
+=======
+    if e == 70:
+        if isinstance(optimizer.model, ComplEx_NNE):
+            model.mu = 2 * model.mu
+    cur_loss = optimizer.epoch(examples)
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
     if (e + 1) % args.valid == 0:
         valid, test, train = [
             avg_both(*dataset.eval(model, split, -1 if split != 'train' else 50000))

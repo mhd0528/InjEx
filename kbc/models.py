@@ -324,11 +324,18 @@ class ComplEx_NNE(KBCModel):
             if self.rule_list[3][i] < 0:
                 # r_q_ebds[1][i] = -r_q_ebds[1][i]
                 score += torch.sum(torch.square(r_p_ebds[1][i] + r_q_ebds[1][i])) * self.rule_list[2][i]
+<<<<<<< HEAD
                 # continue
             else:
                 score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
 
         # score *= self.mu
+=======
+            else:
+                score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
+
+        #score *= self.mu
+>>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
         # score = factor[0] * score
         # print (score)
         return score
