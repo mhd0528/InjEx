@@ -92,53 +92,47 @@ args = parser.parse_args()
 print("\n======> Parameter settings: " + str(args))
 dataset = Dataset(args.dataset)
 examples = torch.from_numpy(dataset.get_train().astype('int64'))
-# print("\n======> Number of training triples: " + str(examples.size()))
+print("\n======> Number of training triples: " + str(examples.size()))
 
 ######## used for rule injection
-rule_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset + '/cons.txt'
+rule_path = '/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/src_data/' + args.dataset + '/cons.txt'
 #### read in & convert rule ids and confidence
 # get number of predicates
-r_num = dataset.get_shape()[1] // 2
-print ("\n======> Number of relations: " + str(r_num))
+print ("\n======> Number of entities and relations: " + str(dataset.get_shape()))
 
 if args.model == 'ComplEx_NNE':
     kbc_id_conf_f = rule_path
-    r_p_list = []
-    r_q_list = []
-    conf_list = []
-    neg_list = []
+    rule_list = []
+    # r_num = dataset.get_shape()[1] // 2
+    r_num = dataset.get_shape()[1]
     with open(kbc_id_conf_f, 'r') as f:
         while True:
             line = f.readline()
             if line:
+                flag = 1
                 # two relations split by ',', confidence split by tab
                 line.replace('\n', '')
-                r_p = int(line.split(',')[0])
-                if r_p < 0:
-                    # print("ignore negative rules")
-                    neg_list.append(-1)
-                    r_p = -r_p
-                    if r_p >= r_num:
-                        print("suspicious relation id: " + str(r_p))
-                else:
-                    neg_list.append(1)
-                r_q = int(line.split(',')[1].split('\t')[0])
-                conf = float(line.split('\t')[1])
-                # print(rel0, rel1, conf)
-                r_p_list.append(r_p)
-                r_q_list.append(r_q)
-                conf_list.append(conf)
+                if line[0] == '-': # negative rules
+                    flag = -1
+                    line = line[1:]
+                tokens = line.split('\t')
+                r_p = int(tokens[0].split(',')[0])
+                r_q = int(tokens[0].split(',')[1])
+                conf = float(tokens[1])
                 # print(r_p, r_q, conf)
+                rule_list.append((r_p, r_q, conf, flag))
             else:
                 break
-    rule_list = [r_p_list, r_q_list, conf_list, neg_list]
+    print ("\n======> Number of rules: " + str(len(rule_list)) + str(rule_list[0]))
+    print(rule_list)
 
-print(dataset.get_shape())
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 10),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 1),
 }[args.model]()
+print("======> This model: ComplEx_NNE_AER; train: synthesized experiments, validating with no r_q in training set, 12.07 data; less embedding rank and larger batch")
+# print("======> This model: original ComplEx; train: synthesized experiments, 12.07 data; less embedding rank and larger batch, no reciprocal setting, F2 regularizer")
 
 regularizer = {
     'F2': F2(args.reg),
@@ -178,12 +172,13 @@ for e in range(args.max_epochs):
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, ComplEx_NNE):
             model.mu = 2 * model.mu
-    # cur_loss = optimizer.epoch(examples)
-    cur_loss = optimizer.epoch_2(examples, dataset)
+    cur_loss = optimizer.epoch(examples)
+    # cur_loss = optimizer.epoch_2(examples, dataset)
     
     if (e + 1) % args.valid == 0:
         valid, test, train = [
             avg_both(*dataset.eval(model, split, -1 if split != 'train' else 50000))
+            # for split in ['valid', 'test', 'train']
             for split in ['valid', 'test', 'train']
         ]
 
@@ -201,11 +196,11 @@ time_stamp = str(now)[:19].replace(':','-').replace(' ', '_')
 if isinstance(optimizer.model, ComplEx_NNE):
     all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_real_compare' + '.txt'
     all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_img_compare' + '.txt'
-    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '.pkl'
+    model_path = '/blue/daisyw/ma.haodi/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '.pkl'
 else:
     all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_real_compare' + '.txt'
     all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_img_compare' + '.txt'
-    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '.pkl'
+    model_path = '/blue/daisyw/ma.haodi/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '.pkl'
 
 
 # real_file = open(all_rules_real_path, "a")
@@ -247,5 +242,5 @@ else:
 
 # model_path = '/home/ComplEx-Inject/saved_models/' + args.model + '_' + args.dataset + '_mu_' + str(model.mu) + '_' + time_stamp + '.pkl'
 results = dataset.eval(model, 'test', -1)
-torch.save((model,dataset), model_path)
+# torch.save((model,dataset), model_path)
 print("\n\nTEST : ", results)

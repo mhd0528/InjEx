@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
 import torch
 from torch import nn
+import numpy as np
 
 
 class KBCModel(nn.Module, ABC):
@@ -56,6 +57,7 @@ class KBCModel(nn.Module, ABC):
                     # take care that scores are chunked
                     for i, query in enumerate(these_queries):
                         filter_out = filters[(query[0].item(), query[1].item())]
+                            # print(query)
                         filter_out += [queries[b_begin + i, 2].item()]
                         if chunk_size < self.sizes[2]:
                             filter_in_chunk = [
@@ -188,7 +190,7 @@ class ComplEx_NNE(KBCModel):
             self, sizes: Tuple[int, int, int], rank: int,
             rule_list: list, 
             init_size: float = 1e-3, 
-            mu: float = 10.0
+            mu: float = 0.1
     ):
         super(ComplEx_NNE, self).__init__()
         self.sizes = sizes
@@ -252,36 +254,6 @@ class ComplEx_NNE(KBCModel):
             torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
         )
 
-    # def forward(self, x):
-    #     # ebd of left hand side, relation and right hand side of triples
-    #     lhs = torch.clamp(self.embeddings[0](x[:, 0]), 0 , 1)
-    #     print (self.embeddings[0](x[:, 0]))
-    #     print (lhs)
-    #     rel = self.embeddings[1](x[:, 1])
-    #     rhs = torch.clamp(self.embeddings[0](x[:, 2]), 0 ,1)
-    #     # print(x[:, 1])
-        
-    #     check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
-    #     if check_nan > 0 :
-    #         # print("number of relations: " + str(len(rel[0])))
-    #         print ("have nan value in forward embedding: " + str(check_nan))
-    #         print(torch.isnan(rel[0]))
-
-    #     lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-    #     rel = rel[:, :self.rank], rel[:, self.rank:]
-    #     rhs = rhs[:, :self.rank], rhs[:, self.rank:]
-
-    #     to_score = torch.clamp(self.embeddings[0].weight, 0 , 1)
-    #     to_score = to_score[:, :self.rank], to_score[:, self.rank:]
-    #     return (
-    #         (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
-    #         (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
-    #     ), (
-    #         torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
-    #         torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
-    #         torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
-    #     )
-
     def get_rhs(self, chunk_begin: int, chunk_size: int):
         return self.embeddings[0].weight.data[
             chunk_begin:chunk_begin + chunk_size
@@ -322,23 +294,46 @@ class ComplEx_NNE(KBCModel):
         for i in range(len(r_p_ebds[0])):
             score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), r_p_ebds[0][i] - r_q_ebds[0][i])) * self.rule_list[2][i]
             if self.rule_list[3][i] < 0:
-                # r_q_ebds[1][i] = -r_q_ebds[1][i]
+                r_q_ebds[1][i] = -r_q_ebds[1][i]
                 score += torch.sum(torch.square(r_p_ebds[1][i] + r_q_ebds[1][i])) * self.rule_list[2][i]
-<<<<<<< HEAD
-                # continue
-            else:
-                score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
-
-        # score *= self.mu
-=======
             else:
                 score += torch.sum(torch.square(r_p_ebds[1][i] - r_q_ebds[1][i])) * self.rule_list[2][i]
 
         #score *= self.mu
->>>>>>> 9c31e19498d0919c9c5cfecf40b8179e83c57895
         # score = factor[0] * score
         # print (score)
-        return score
+        return score * self.mu
+    
+    def get_rules_loss(self):
+        # get embeddings for all r_p and r_q
+        rel = self.embeddings[1]
+        for i, rule in enumerate(self.rule_list):
+            r_p, r_q, conf, r_dir = rule
+            r_p = torch.LongTensor([r_p]).cuda()
+            r_q = torch.LongTensor([r_q]).cuda()
+            r_p_ebds = torch.transpose(rel(r_p), 0, 1)
+            r_q_ebds = torch.transpose(rel(r_q), 0, 1)
+            r_p_re, r_p_im = r_p_ebds[:self.rank], r_p_ebds[self.rank:]
+            r_q_re, r_q_im = r_q_ebds[:self.rank], r_q_ebds[self.rank:]
+            # print(r_p_ebds.size(), r_p_re.size(), self.rank)
+            
+            r_p_re *= conf
+            r_p_im *= r_dir
+            r_q_re *= conf
+            # print("rule grad exists?: " + str(r_q_im.requires_grad))
+            # real penalty
+            if not i:
+                rule_score = torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
+            else:
+                rule_score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
+            # imaginary penalty
+            rule_score += torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
+
+        rule_score /= len(self.rule_list)
+        rule_score *= self.mu
+        # print(rule_score.requires_grad)
+        return rule_score
+    
 
 class ComplEx_logicNN(KBCModel):
     def __init__(
@@ -426,6 +421,36 @@ class ComplEx_logicNN(KBCModel):
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
 
+    def get_rules_loss(self):
+        # get embeddings for all r_p and r_q
+        rel = self.embeddings[1]
+        for i, rule in enumerate(self.rule_list):
+            r_p, r_q, conf, r_dir = rule
+            r_p = torch.LongTensor([r_p]).cuda()
+            r_q = torch.LongTensor([r_q]).cuda()
+            r_p_ebds = torch.transpose(rel(r_p), 0, 1)
+            r_q_ebds = torch.transpose(rel(r_q), 0, 1)
+            r_p_re, r_p_im = r_p_ebds[:self.rank], r_p_ebds[self.rank:]
+            r_q_re, r_q_im = r_q_ebds[:self.rank], r_q_ebds[self.rank:]
+            # print(r_p_ebds.size(), r_p_re.size(), self.rank)
+            
+            r_p_re *= conf
+            r_p_im *= r_dir
+            r_q_re *= conf
+            # print("rule grad exists?: " + str(r_q_im.requires_grad))
+            # real penalty
+            if not i:
+                rule_score = torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
+            else:
+                rule_score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
+            # imaginary penalty
+            rule_score += torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
+
+        rule_score /= len(self.rule_list)
+        rule_score
+        # print(rule_score.requires_grad)
+        return rule_score
+
     # apply teacher "network" to generate penalty
     # currently, a grounding of a rule is just ebd of ra and rb
     # constraints follow Ding's paper
@@ -471,6 +496,67 @@ class ComplEx_logicNN(KBCModel):
             # if the rule holds, score_t > score_h should hold
             # if score_t > score_h:
             rule_pred[i] = score_t - score_h
-        rule_pred = torch.tensor(rule_pred).cuda()
-        rule_pred = rule_pred / torch.sum(rule_pred)
+        # rule_pred = torch.tensor(rule_pred).cuda()
+        # rule_pred = rule_pred / torch.sum(rule_pred)
         return rule_pred
+
+    def fea_generator(self, rule_type, train_data, ent_num):
+        if rule_type == 0:
+            # create new triples(features) based on related training triples
+            # store idx
+            entailment_triples = []
+            entailment_idx = []
+            for r_p, r_q, conf, r_dir in self.rule_list:
+                for i, (e1, r, e2) in enumerate(train_data):
+                    if r == r_p:
+                        if ((e1, r, e2), (e1, r_q, e2)) not in rule_entailment_triples:
+                            rule_entailment_triples.add(([e1, r, e2], [e1, r_q, e2]))
+                            rule_entailment_idx[i] = 1 
+                entailment_triples.append(list(rule_entailment_triples))
+                entailment_idx.append(list(rule_entailment_idx))
+            print(len(entailment_triples), len(entailment_idx))
+            self.rule_feas = torch.from_numpy(entailment_triples[:, 2].astype('int64'))
+            exit()
+        elif rule_type == 4:
+            # format: p, q, r, conf, tuples (e1, q, e2)
+            # for all entities, score (e2, r, e3) and filter
+            # then maximize score of (e1, p, e3)
+            # select top 1% score tups as valid tuples
+            all_valid_tups = []
+            valid_num = ent_num // 2000
+            for i, fea in enumerate(self.rule_list):
+                r_p = fea[0][0]
+                r_q = fea[0][1]
+                r_r = fea[0][2]
+                conf = fea[1]
+                tuples = fea[2]
+                for tup in tuples:
+                    valid_tups = []
+                    # for all entities, score (e2, r, e3) and filter
+                    for e in range(ent_num):
+                        tmp_tup = [tup[2], r_r, e]
+                        tmp_tup_torch = torch.from_numpy(np.array([tmp_tup])).cuda()
+                        # if self.score(tmp_tup) > 0.95:
+                        valid_tups.append((self.score(tmp_tup_torch), [tup[0].item(), r_p, e]))
+                    # select top 1% score tups as valid tuples
+                    valid_tups = np.array(valid_tups)
+                    valid_tups = list(valid_tups[np.argpartition(valid_tups, valid_num, axis=0)[:,0]][0:valid_num][:,1])
+                    all_valid_tups += valid_tups
+            # print("======> checking format of created tuples: " + str(all_valid_tups[0]))
+            if len(all_valid_tups):
+                all_valid_tups = np.array(all_valid_tups)
+                copy = np.copy(all_valid_tups)
+                # create reciprocal triples
+                tmp = np.copy(copy[:, 0])
+                copy[:, 0] = copy[:, 2]
+                copy[:, 2] = tmp
+                copy[:, 1] += train_data.shape[1] // 2  # has been multiplied by two.
+                all_valid_tups = np.vstack((all_valid_tups, copy))
+                # print("Add reciprocal triples for new extracted data: " )
+                # print(all_valid_tups)
+            else:
+                print("======> empty valid tuples created")
+                all_valid_tups = np.array(all_valid_tups)
+
+            all_valid_tups = torch.from_numpy(all_valid_tups).cuda()
+            self.rule_feas = all_valid_tups

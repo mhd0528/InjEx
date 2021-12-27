@@ -16,7 +16,7 @@ from models import KBCModel
 
 
 # DATA_PATH = Path(pkg_resources.resource_filename('kbc', 'data/'))
-DATA_PATH = Path('/home/ComplEx-Inject/kbc/data/')
+DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')
 
 
 class Dataset(object):
@@ -27,19 +27,41 @@ class Dataset(object):
         for f in ['train', 'test', 'valid']:
             in_file = open(str(self.root / (f + '.pickle')), 'rb')
             self.data[f] = pickle.load(in_file)
+        # print(type(self.data['train']))
+        # print(self.data['train'])
 
         # select certain percentage of training data
         total_train = len(self.data['train'])
         train_percent = 0.05
         train_idx = int(total_train * train_percent)
-        print("original training number: " + str(total_train))
+        # print("original training number: " + str(total_train))
         # self.data['train'] = self.data['train'][train_idx : train_idx * 2]
-        print("sample training number: " + str(len(self.data['train'])))
+        # print("sample training number: " + str(len(self.data['train'])))
         
-        maxis = np.max(self.data['train'], axis=0)
-        self.n_entities = int(max(maxis[0], maxis[2]) + 1)
-        self.n_predicates = int(maxis[1] + 1)
-        self.n_predicates *= 2
+        # entity and relation numbers
+        # maxis = np.max(self.data['train'], axis=0)
+        # self.n_entities = int(max(maxis[0], maxis[2]) + 1)
+        # self.n_predicates = int(maxis[1] + 1)
+        # self.n_predicates *= 2
+        # read from id file
+        self.n_entities = 0
+        self.n_predicates = 0
+        with open(str(self.root / 'ent_id')) as f:
+            while True:
+                line = f.readline()
+                if line:
+                    self.n_entities += 1
+                else:
+                    break
+        with open(str(self.root / 'rel_id')) as f:
+            while True:
+                line = f.readline()
+                if line:
+                    self.n_predicates += 1
+                else:
+                    break
+        # self.n_predicates *= 2
+        # print ("\n======> Number of entities and 2*relations: " + str(self.n_entities) + ' ' + str(self.n_predicates))
 
         inp_f = open(str(self.root / f'to_skip.pickle'), 'rb')
         self.to_skip: Dict[str, Dict[Tuple[int, int], List[int]]] = pickle.load(inp_f)
@@ -53,7 +75,7 @@ class Dataset(object):
         tmp = np.copy(copy[:, 0])
         copy[:, 0] = copy[:, 2]
         copy[:, 2] = tmp
-        copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
+        # copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
         # return np.vstack((self.data['train'], copy))
         return self.data['train']
 
@@ -79,14 +101,14 @@ class Dataset(object):
                 tmp = torch.clone(q[:, 0])
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
-                q[:, 1] += self.n_predicates // 2
+                # q[:, 1] += self.n_predicates // 2
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             mean_reciprocal_rank[m] = torch.mean(1. / ranks).item()
             hits_at[m] = torch.FloatTensor((list(map(
                 lambda x: torch.mean((ranks <= x).float()).item(),
                 at
             ))))
-        print("# of triples in ranking: " + str(len(ranks)))
+        # print("# of triples in ranking: " + str(len(ranks)))
 
         return mean_reciprocal_rank, hits_at
 
@@ -113,7 +135,7 @@ class Dataset(object):
                 tmp = torch.clone(q[:, 0])
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
-                q[:, 1] += self.n_predicates // 2
+                # q[:, 1] += self.n_predicates // 2
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             rank_res.append(ranks)
 
