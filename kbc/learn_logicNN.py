@@ -98,6 +98,7 @@ print("\n======> Parameter settings: " + str(args))
 dataset = Dataset(args.dataset)
 examples = torch.from_numpy(dataset.get_train().astype('int64'))
 print("\n======> Number of training triples: " + str(examples.size()))
+print("======> triples example: " + str(examples[0]))
 
 ######## used for rule injection
 dataset_path = '/home/ComplEx-Inject/kbc/src_data/' + args.dataset
@@ -162,8 +163,8 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
     print('model is complex-nne or ComplEx_logicNN')
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
-    print ("\n======> Number of rules: " + str(len(rule_list)) + str(rule_list[0]))
-    print(rule_list)
+    print ("\n======> Number of rules: " + str(len(rule_list)) + ' ' + str(rule_list[0]))
+    # print(rule_list)
 
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
@@ -175,11 +176,12 @@ model = {
 if args.model == 'ComplEx_NNE':
     init_mu = model.mu
 
+device = 'cuda'
+model.to(device)
 # Extract features for teach student network with entailment rules
 # for each rule, create its own feature and feature idx
 if isinstance(model, ComplEx_logicNN):
-    if args.rule_type == 0:
-        model.fea_generator(args.rule_type, examples, ent_num)
+    model.fea_generator(args.rule_type, examples, ent_num)
 # load in a pretrained model (use the pre-trained embeddings)
 # (old_model, old_data) = torch.load('saved_models/2021-09-01_21-13-27_FB237_ComplEx.pkl')
 # model.embeddings = old_model.embeddings
@@ -192,8 +194,6 @@ regularizer = {
     'N3': N3(args.reg),
 }[args.regularizer]
 
-device = 'cuda'
-model.to(device)
 
 optim_method = {
     'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
@@ -221,16 +221,16 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
-    # if isinstance(optimizer.model, ComplEx_logicNN):
-    #     # print("Epoch {}: ".format(e))
-    #     # print("   pi: {}".format(optimizer.pi))
-    #     # generate rule related training data with type 4 rules
-    #     if args.rule_type:
-    #         # if e % 20 == 0:
-    #         if e == 30 or e == 90:
-    #             optimizer.model.fea_generator(args.rule_type, examples, ent_num)
-    #             new_examples = optimizer.model.rule_feas
-    #             print("generating rule_related data: " + str(new_examples.size()))
+    if isinstance(optimizer.model, ComplEx_logicNN):
+        # print("Epoch {}: ".format(e))
+        # print("   pi: {}".format(optimizer.pi))
+        # generate rule related training data with type 4 rules
+        if args.rule_type:
+            # if e % 20 == 0:
+            if e == 30 or e == 90: # generate new features for better training
+                optimizer.model.fea_generator(args.rule_type, examples, ent_num)
+                # new_examples = optimizer.model.rule_feas
+                print("generate new rule features: " + str(optimizer.model.rule_feas.size()))
 
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, ComplEx_NNE):

@@ -103,7 +103,7 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                                 triple_ids.append(str(i))
                         triple_ids_str = ' '.join(triple_ids)
                         out.write('%s\t%s\t%s\n' % (rule, conf, triple_ids_str))
-                        print("rule found: " + str(rel_q))
+                        print("rule found: " + str(rule))
                         # out2.write(line)
                     except KeyError:
                         continue

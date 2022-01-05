@@ -80,26 +80,22 @@ class KBCOptimizer(object):
                         # l_rule_constraint = self.model.get_rules_loss()
                         # l = (1-self.pi) * l + self.pi * l_rule_constraint
 
-                        # use r_q triples as rule feature
-                        for i, fea in enumerate(self.model.rule_feas):
-                            # print("======> applying rule " + str(i) + "======>")
-                            # select related triples in current batch
-                            batch_fea = []
-                            for ((e1, head, e2), (e1, tail, e2)) in fea:
-                                if torch.tensor([e1, head, e2]).cuda() in input_batch:
-                                    batch_fea.append(((e1, head, e2), (e1, tail, e2)))
-                            # inverse rules treat differently in model function
-                            rule_conf = self.model.rule_list[i][2]
-                            rule_dir = self.model.rule_list[i][3]
-                            rule_pred = torch.tensor(self.model.get_rules_pred(batch_fea, rule_conf, rule_dir)).cuda()
-                            rule_truth = torch.ones(len(batch_fea)).cuda() * rule_conf
-                            rule_pen = loss2(rule_pred, rule_truth) * self.model.C * rule_conf
-                            if torch.isnan(rule_pen):
-                                # print("penalty term is nan, skip......")
-                                self.pi = 1
-                            else:
-                                # print("======> rule_penalty: " + str(rule_pen))
-                                l = (1-self.pi) * l + self.pi * rule_pen
+                        # Grounding injection: use r_q triples as rule feature
+                        # print("=======> computing rule grounding loss")
+                        rule_predictions, rule_factors = self.model.forward(self.model.rule_feas)
+                        rule_truth = self.model.rule_feas[:, 2]
+
+                        l_rule_fit = loss(rule_predictions, rule_truth)
+                        l_rule_reg = self.regularizer.forward(rule_factors)
+                        l = (1-self.pi) * l + self.pi * (l_rule_fit + l_rule_reg)
+                    elif rule_type == 4:
+                        ## Grounding injection: use created r_p triples as rule feature
+                        rule_predictions, rule_factors = self.model.forward(self.model.rule_feas)
+                        rule_truth = self.model.rule_feas[:, 2]
+
+                        l_rule_fit = loss(rule_predictions, rule_truth)
+                        l_rule_reg = self.regularizer.forward(rule_factors)
+                        l = (1-self.pi) * l + self.pi * (l_rule_fit + l_rule_reg)
 
                 self.optimizer.zero_grad()
                 l.backward()
@@ -110,10 +106,10 @@ class KBCOptimizer(object):
                     if isinstance(self.model, models.ComplEx_NNE) or isinstance(self.model, models.ComplEx_logicNN):
                         # print("clamping entity embeddeing constraint")
                         self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
-#                         with torch.no_grad():
-#                             for param in self.model.parameters():
-#                                 if ((param.shape[0] == self.model.embeddings[0].num_embeddings)):
-#                                     param.clamp_(1e-3, 1)
+                        # with torch.no_grad():
+                        #     for param in self.model.parameters():
+                        #         if ((param.shape[0] == self.model.embeddings[0].num_embeddings)):
+                        #             param.clamp_(1e-3, 1)
                 
                 b_begin += self.batch_size
                 b_cnt += 1

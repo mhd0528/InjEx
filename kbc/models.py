@@ -382,11 +382,25 @@ class ComplEx_logicNN(KBCModel):
         lhs = self.embeddings[0](x[:, 0])
         rel = self.embeddings[1](x[:, 1])
         rhs = self.embeddings[0](x[:, 2])
-        # print(x[:, 1])
+        if len(x[0]) == 4:
+            r_dirs = torch.zeros(len(x), len(x)).cuda()
+            for i, r_dir in enumerate(x[:, 3]):
+                r_dirs[i][i] = r_dir
+            # tmp = torch.matmul(r_dirs, rel[:, self.rank:])
+            tmp = r_dirs @ rel[:, self.rank:]
+            # print(rel[:, self.rank:].size(), r_dirs.size())
+        # else:
+        #     r_dirs = torch.eye(len(x)).cuda()
+        # print(r_dirs)
 
+        # print(rel[:, self.rank:])
         lhs = lhs[:, :self.rank], lhs[:, self.rank:]
-        rel = rel[:, :self.rank], rel[:, self.rank:]
+        if len(x[0]) == 4:
+            rel = rel[:, :self.rank], tmp
+        else:
+            rel = rel[:, :self.rank], rel[:, self.rank:]
         rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+        # print(rel[1])
         
         check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
         if check_nan > 0 :
@@ -500,30 +514,32 @@ class ComplEx_logicNN(KBCModel):
         # rule_pred = rule_pred / torch.sum(rule_pred)
         return rule_pred
 
+    ######## extract/create groundings for different rules
     def fea_generator(self, rule_type, train_data, ent_num):
         if rule_type == 0:
             # create new triples(features) based on related training triples
             # store idx
             entailment_triples = []
-            entailment_idx = []
             for r_p, r_q, conf, r_dir in self.rule_list:
                 for i, (e1, r, e2) in enumerate(train_data):
                     if r == r_p:
-                        if ((e1, r, e2), (e1, r_q, e2)) not in rule_entailment_triples:
-                            rule_entailment_triples.add(([e1, r, e2], [e1, r_q, e2]))
-                            rule_entailment_idx[i] = 1 
-                entailment_triples.append(list(rule_entailment_triples))
-                entailment_idx.append(list(rule_entailment_idx))
-            print(len(entailment_triples), len(entailment_idx))
-            self.rule_feas = torch.from_numpy(entailment_triples[:, 2].astype('int64'))
-            exit()
+                        entailment_triples.append([e1, r_q, e2, r_dir])
+            # print(len(entailment_triples))
+            # entailment_triples = set(map(tuple, entailment_triples))
+            # print(len(entailment_triples))
+            # entailment_triples = list(map(list, entailment_triples))
+            entailment_triples = np.array(list(entailment_triples))
+            self.rule_feas = torch.from_numpy(entailment_triples.astype('int64')).cuda()
+            # exit()
         elif rule_type == 4:
+            # rule: p(x, y) <- q(x, z), r(z, y)
             # format: p, q, r, conf, tuples (e1, q, e2)
             # for all entities, score (e2, r, e3) and filter
             # then maximize score of (e1, p, e3)
-            # select top 1% score tups as valid tuples
-            all_valid_tups = []
+            # select top 0.5% score tups as valid tuples
             valid_num = ent_num // 2000
+            total_tup_num = valid_num * len(self.rule_list)
+            all_valid_tups = []
             for i, fea in enumerate(self.rule_list):
                 r_p = fea[0][0]
                 r_q = fea[0][1]
@@ -533,30 +549,35 @@ class ComplEx_logicNN(KBCModel):
                 for tup in tuples:
                     valid_tups = []
                     # for all entities, score (e2, r, e3) and filter
+                    # for e in range(ent_num):
+                    #     tmp_tup = [tup[2], r_r, e]
+                    #     tmp_tup_torch = torch.from_numpy(np.array([tmp_tup])).cuda()
+                    #     # if self.score(tmp_tup) > 0.95:
+                    #     valid_tups.append((self.score(tmp_tup_torch), [tup[0].item(), r_p, e]))
                     for e in range(ent_num):
-                        tmp_tup = [tup[2], r_r, e]
-                        tmp_tup_torch = torch.from_numpy(np.array([tmp_tup])).cuda()
-                        # if self.score(tmp_tup) > 0.95:
-                        valid_tups.append((self.score(tmp_tup_torch), [tup[0].item(), r_p, e]))
+                        valid_tups.append([tup[2], r_r, e])
+                    valid_tups = torch.from_numpy(np.array(valid_tups).astype('int64')).cuda()
+                    score_tups = torch.transpose(self.score(valid_tups), 0, 1)
                     # select top 1% score tups as valid tuples
-                    valid_tups = np.array(valid_tups)
-                    valid_tups = list(valid_tups[np.argpartition(valid_tups, valid_num, axis=0)[:,0]][0:valid_num][:,1])
-                    all_valid_tups += valid_tups
+                    valid_idxs = torch.topk(score_tups, k=valid_num)[1].long().flatten()
+                    valid_tups = torch.index_select(valid_tups, 0, valid_idxs)
+                    all_valid_tups.append(valid_tups)
+            all_valid_tups = torch.cat(all_valid_tups, dim=0)
             # print("======> checking format of created tuples: " + str(all_valid_tups[0]))
-            if len(all_valid_tups):
-                all_valid_tups = np.array(all_valid_tups)
-                copy = np.copy(all_valid_tups)
-                # create reciprocal triples
-                tmp = np.copy(copy[:, 0])
-                copy[:, 0] = copy[:, 2]
-                copy[:, 2] = tmp
-                copy[:, 1] += train_data.shape[1] // 2  # has been multiplied by two.
-                all_valid_tups = np.vstack((all_valid_tups, copy))
-                # print("Add reciprocal triples for new extracted data: " )
-                # print(all_valid_tups)
-            else:
-                print("======> empty valid tuples created")
-                all_valid_tups = np.array(all_valid_tups)
+            # if len(all_valid_tups):
+            #     all_valid_tups = np.array(all_valid_tups)
+            #     # copy = np.copy(all_valid_tups)
+            #     # # create reciprocal triples
+            #     # tmp = np.copy(copy[:, 0])
+            #     # copy[:, 0] = copy[:, 2]
+            #     # copy[:, 2] = tmp
+            #     # copy[:, 1] += train_data.shape[1] // 2  # has been multiplied by two.
+            #     # all_valid_tups = np.vstack((all_valid_tups, copy))
+            #     # print("Add reciprocal triples for new extracted data: " )
+            #     # print(all_valid_tups)
+            # else:
+            #     print("======> empty valid tuples created")
+            #     all_valid_tups = np.array(all_valid_tups)
 
-            all_valid_tups = torch.from_numpy(all_valid_tups).cuda()
+            # all_valid_tups = torch.from_numpy(all_valid_tups.astype('int64')).cuda()
             self.rule_feas = all_valid_tups

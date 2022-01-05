@@ -1,0 +1,10 @@
+/user/jg/default_domain/olympic_games/sports,/olympics/olympic_games/sports	0.834196891
+-/location/capital_of_administrative_division/capital_of./location/administrative_division_capital_relationship/administrative_division,/location/us_county/county_seat	1
+-/sports/sports_position/players./sports/sports_team_roster/team,/sports/sports_team/roster./basketball/basketball_roster_position/position	0.828571429
+/base/aareas/schema/administrative_area/administrative_parent,/location/administrative_division/first_level_division_of	1
+/location/administrative_division/country,/location/administrative_division/first_level_division_of	0.901960784
+/american_football/football_team/current_roster./sports/sports_team_roster/position,/sports/sports_team/roster./american_football/football_roster_position/position	0.820244328
+-/sports/sports_position/players./sports/sports_team_roster/team,/sports/sports_team/roster./baseball/baseball_roster_position/position	0.825842697
+/education/university/domestic_tuition./measurement_unit/dated_money_value/currency,/education/university/international_tuition./measurement_unit/dated_money_value/currency	1
+/organization/endowed_organization/endowment./measurement_unit/dated_money_value/currency,/education/university/international_tuition./measurement_unit/dated_money_value/currency	0.96969697
+-/location/capital_of_administrative_division/capital_of./location/administrative_division_capital_relationship/administrative_division,/base/aareas/schema/administrative_area/capital	1
