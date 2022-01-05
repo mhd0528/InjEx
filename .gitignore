@@ -5,9 +5,11 @@ result/*
 saved_models/*
 model_data.pkl
 
-# ignore certain data files
+# ignore training & testing files
+logs/*
 kbc/data/*
 .Trash-0/*
+kbc/src_data/*
 kbc/src_data/FB237/original/MSR-LA_Data_Full Rights_FB15K-237 Knowledge Base Completion Dataset (2650).docx
 kbc/src_data/FB237/original/text_cvsc.txt
 kbc/src_data/FB237/original/text_emnlp.txt
