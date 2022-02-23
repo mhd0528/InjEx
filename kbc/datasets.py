@@ -46,10 +46,14 @@ class Dataset(object):
         # read from id file
         self.n_entities = 0
         self.n_predicates = 0
+        self.rel_id = {}
+        self.ent_id = {}
         with open(str(self.root / 'ent_id')) as f:
             while True:
                 line = f.readline()
                 if line:
+                    ent_n, ent_idx = line.split('\t')
+                    self.ent_id[ent_n] = int(ent_idx)
                     self.n_entities += 1
                 else:
                     break
@@ -57,6 +61,8 @@ class Dataset(object):
             while True:
                 line = f.readline()
                 if line:
+                    rel_n, rel_idx = line.split('\t')
+                    self.rel_id[rel_n] = int(rel_idx)
                     self.n_predicates += 1
                 else:
                     break

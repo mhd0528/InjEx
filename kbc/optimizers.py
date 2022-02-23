@@ -34,10 +34,13 @@ class KBCOptimizer(object):
         self.n_train_batches = n_train_batches
         self.m_NumNeg = 10
 
-    def get_pi(self, cur_iter, params=None, pi=None):
+    #### get new pi for each epoch base on the epoch number
+    def get_pi(self, cur_iter, params=None):
         """ exponential decay: pi_t = max{1 - k^t, lb} """
         k, lb = params[0], params[1]
-        pi = 1. - max([k ** cur_iter, lb])
+        # pi = 1. - max([k ** cur_iter, lb])
+        pi = max([k ** cur_iter, lb])
+        # print("pi for eopch:", (cur_iter, pi))
         return pi
 
     def epoch(self, examples: torch.LongTensor, rule_type=0):
@@ -75,8 +78,8 @@ class KBCOptimizer(object):
                     # print("=======> optimizor pi: " + str(self.pi) + " at batch " + str(b_cnt))
                     # for each rule, compute the penalty
                     if rule_type == 0:
-                        # # directly use rules as feature, compute gradient on relations
-                        # # print("=======> adding rule feature loss to total loss")
+                        ## directly use rules as feature, compute gradient on relations
+                        ## print("=======> adding rule feature loss to total loss")
                         # l_rule_constraint = self.model.get_rules_loss()
                         # l = (1-self.pi) * l + self.pi * l_rule_constraint
 
@@ -96,6 +99,11 @@ class KBCOptimizer(object):
                         l_rule_fit = loss(rule_predictions, rule_truth)
                         l_rule_reg = self.regularizer.forward(rule_factors)
                         l = (1-self.pi) * l + self.pi * (l_rule_fit + l_rule_reg)
+
+                if isinstance(self.model, models.ComplEx_supportNN):
+                    # print ("add rule injection term to loss function")
+                    l_rule_constraint = self.model.get_rules_loss()
+                    l += l_rule_constraint
 
                 self.optimizer.zero_grad()
                 l.backward()

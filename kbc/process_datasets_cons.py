@@ -29,6 +29,7 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                 rel2id[rel] = rel_id
         # with open(path+'/_cons.txt') as f,open(path+'/cons.txt','w') as out, open(path+'/_237cons.txt', 'w') as out2:
         print(path)
+        # with open(path+'/_cons_freq_train.txt') as f,open(path+'/cons.txt','w') as out:
         with open(path+'/_cons.txt') as f,open(path+'/cons.txt','w') as out:
             for line in f:
                 rule_str, conf = line.strip().split()
@@ -93,7 +94,7 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                 rel_q = '/' + row['q(x,z)'].replace('.', '/')
                 re_r = '/' + row['r(z,y)'].replace('.', '/')
                 conf = row['Confidence']
-                if conf >= 0.5:
+                if conf >= 0.8:
                     try:
                         rule = str(rel2id[rel_p])+','+str(rel2id[rel_q])+','+str(rel2id[re_r])
                         # extract triples from training set
@@ -201,12 +202,12 @@ def prepare_dataset(path, name):
     out.close()
     
     # translate rules
-    translate_cons(name, path, examples, 4)
+    translate_cons(name, path, examples, 0)
 
 
 if __name__ == "__main__":
     # datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
-    datasets = ['FB15K', 'FB237']
+    datasets = ['FB15K', 'FB237', 'NELL']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:

@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
 import torch
 from torch import nn
+from collections import defaultdict
 import numpy as np
 
 
@@ -307,12 +308,15 @@ class ComplEx_NNE(KBCModel):
     def get_rules_loss(self):
         # get embeddings for all r_p and r_q
         rel = self.embeddings[1]
+        rule_score = 0
         for i, rule in enumerate(self.rule_list):
             r_p, r_q, conf, r_dir = rule
             r_p = torch.LongTensor([r_p]).cuda()
             r_q = torch.LongTensor([r_q]).cuda()
             r_p_ebds = torch.transpose(rel(r_p), 0, 1)
             r_q_ebds = torch.transpose(rel(r_q), 0, 1)
+            # r_p_ebds = rel(r_p)[0]
+            # r_q_ebds = rel(r_q)[0]
             r_p_re, r_p_im = r_p_ebds[:self.rank], r_p_ebds[self.rank:]
             r_q_re, r_q_im = r_q_ebds[:self.rank], r_q_ebds[self.rank:]
             # print(r_p_ebds.size(), r_p_re.size(), self.rank)
@@ -322,18 +326,14 @@ class ComplEx_NNE(KBCModel):
             r_q_re *= conf
             # print("rule grad exists?: " + str(r_q_im.requires_grad))
             # real penalty
-            if not i:
-                rule_score = torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
-            else:
-                rule_score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re))) 
+            rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
             # imaginary penalty
-            rule_score += torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
+            rule_score += self.mu * torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
 
         rule_score /= len(self.rule_list)
-        rule_score *= self.mu
+        # rule_score *= self.mu
         # print(rule_score.requires_grad)
         return rule_score
-    
 
 class ComplEx_logicNN(KBCModel):
     def __init__(
@@ -435,6 +435,9 @@ class ComplEx_logicNN(KBCModel):
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
 
+
+    # apply teacher "network" with same loss function 
+    # on extracted groundings for each rule
     def get_rules_loss(self):
         # get embeddings for all r_p and r_q
         rel = self.embeddings[1]
@@ -564,6 +567,7 @@ class ComplEx_logicNN(KBCModel):
                     all_valid_tups.append(valid_tups)
             all_valid_tups = torch.cat(all_valid_tups, dim=0)
             # print("======> checking format of created tuples: " + str(all_valid_tups[0]))
+            #### precceprocal setting
             # if len(all_valid_tups):
             #     all_valid_tups = np.array(all_valid_tups)
             #     # copy = np.copy(all_valid_tups)
@@ -581,3 +585,261 @@ class ComplEx_logicNN(KBCModel):
 
             # all_valid_tups = torch.from_numpy(all_valid_tups.astype('int64')).cuda()
             self.rule_feas = all_valid_tups
+
+class ComplEx_supportNN(KBCModel):
+    def __init__(
+            self, sizes: Tuple[int, int, int], rank: int,
+            init_size: float = 1e-3,
+            mu: float = 0.1
+            feas: list = [],
+            sup: list = []
+    ):
+        super(ComplEx_supportNN, self).__init__()
+        self.sizes = sizes
+        self.rank = rank
+        self.feas = feas
+        self.sup = sup
+
+        self.embeddings = nn.ModuleList([
+            nn.Embedding(s, 2 * rank, sparse=True)
+            for s in sizes[:2]
+        ])
+        # check_nan = torch.sum(torch.isnan(self.embeddings[0].weight.data))
+        # print ("have nan value in weight: " + str(check_nan))
+        self.embeddings[0].weight.data *= init_size
+        self.embeddings[1].weight.data *= init_size
+
+    def score(self, x):
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+
+        #original loss function
+        return torch.sum(
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+            1, keepdim=True
+        )
+
+    def forward(self, x):
+        # ebd of left hand side, relation and right hand side of triples
+        lhs = self.embeddings[0](x[:, 0])
+        rel = self.embeddings[1](x[:, 1])
+        rhs = self.embeddings[0](x[:, 2])
+        if len(x[0]) == 4:
+            r_dirs = torch.zeros(len(x), len(x)).cuda()
+            for i, r_dir in enumerate(x[:, 3]):
+                r_dirs[i][i] = r_dir
+            # tmp = torch.matmul(r_dirs, rel[:, self.rank:])
+            tmp = r_dirs @ rel[:, self.rank:]
+            # print(rel[:, self.rank:].size(), r_dirs.size())
+        # else:
+        #     r_dirs = torch.eye(len(x)).cuda()
+        # print(r_dirs)
+
+        # print(rel[:, self.rank:])
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        if len(x[0]) == 4:
+            rel = rel[:, :self.rank], tmp
+        else:
+            rel = rel[:, :self.rank], rel[:, self.rank:]
+        rhs = rhs[:, :self.rank], rhs[:, self.rank:]
+        # print(rel[1])
+        
+        check_nan = torch.sum(torch.isnan(rel[0])) + torch.sum(torch.isnan(rel[1]))
+        if check_nan > 0 :
+            #print(torch.isnan(rel[0]))
+            print("number of relations: " + str(len(rel[0])))
+            print ("have nan value in forward embedding: " + str(check_nan))
+
+        to_score = self.embeddings[0].weight
+        to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+        return (
+            (lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+            (lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1)
+        ), (
+            torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+            torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+            torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+        )
+
+    def get_rhs(self, chunk_begin: int, chunk_size: int):
+        return self.embeddings[0].weight.data[
+            chunk_begin:chunk_begin + chunk_size
+        ].transpose(0, 1)
+
+    def get_queries(self, queries: torch.Tensor):
+        lhs = self.embeddings[0](queries[:, 0])
+        rel = self.embeddings[1](queries[:, 1])
+        lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+        rel = rel[:, :self.rank], rel[:, self.rank:]
+
+        return torch.cat([
+            lhs[0] * rel[0] - lhs[1] * rel[1],
+            lhs[0] * rel[1] + lhs[1] * rel[0]
+        ], 1)
+
+    #### read in support set
+    def support_reader(self, file_path, rel_id, ent_id):
+        sup_t = []
+        to_read = open(file_path, 'r')
+        for line in to_read.readlines():
+            lhs, rel, rhs = line.strip().split('\t')
+            sup_t.append([ent_id[lhs], rel_id[rel], ent_id[rhs]])
+        sup_t = np.array(sup_t)
+        sup_t = torch.from_numpy(sup_t.astype('int64'))#.cuda()
+        to_read.close()
+        # print(sup_t)
+        return sup_t
+
+    ######## extract groundings using (e1, r, e2) in support set
+    #### find all triples with e1 and e2 from training set, use as groundings for target relation
+    def isReachable(self, s, d, e_num, k, g_dict):
+        # Mark all the entities as not visited
+        visited =[False]*(e_num)  
+        # Create a queue for BFS
+        queue=[]
+  
+        # Mark the source node as visited and enqueue it
+        queue.append((s, 0, [s]))
+        visited[s] = True
+        ans = []
+  
+        while queue:
+            #Dequeue a vertex from queue
+            n, t, cur_p = queue.pop(0)
+            # print(queue)
+            # If this adjacent node is the destination node,
+            # then return true
+            if n == d:
+                ans.append(cur_p)
+                # return True
+            if t > k:
+                break
+            #  Else, continue to do BFS
+            for i in g_dict[n]:
+                if visited[i] == False:
+                    # print(cur_p)
+                    queue.append((i, t + 1, cur_p+[i]))
+                    visited[i] = True
+        # If BFS is complete without visited d
+        return ans
+
+    def general_fea_generator(self, support_data, train_data):
+        ## generate relation dictionary from training data
+        ## generate (e1, e2) dictionry from training data
+        fea_dict = []
+        # all_fea_triples = []
+        # head_r_dict = defaultdict(list)
+        # tail_r_dict = defaultdict(list)
+        # r_head_dict = defaultdict(list)
+        # r_tail_dict = defaultdict(list)
+        head_dict = defaultdict(list)
+        rel_dict = defaultdict(list)
+        ent_dict = defaultdict(list)
+        for e1, r, e2 in train_data:
+            e1 = int(e1)
+            e2 = int(e2)
+            r = int(r)
+            # head_r_dict[e1].append(r)
+            # tail_r_dict[e2].append(r)
+            # r_head_dict[r].append(e1)
+            # r_tail_dict[r].append(e2)
+            rel_dict[r].append([e1, e2])
+            ent_dict[(e1, e2)].append(r)
+            head_dict[e1].append(e2)
+        
+        ## generate more groundings for target relation if there is matching relation(s)
+        for e1, r_t, e2 in support_data:
+            fea_t = []
+            e1, r_t, e2 = int(e1), int(r_t), int(e2)
+            #### check direct replacement of r_t
+            # if (e1, e2) in ent_dict:
+            #     for r_m in ent_dict[(e1, e2)]:
+            #         for e_m1, e_m2 in rel_dict[r_m]:
+            #             fea_t.append([e_m1, r_t, e_m2])
+            #### check k-hop path
+            if not len(fea_t):
+                cand_ps = self.isReachable(e1, e2, len(head_dict.keys()), 5, head_dict)
+                if len(cand_ps):
+                    # print('path found for ' + str((e1, e2)))
+                    cand_entity_path = cand_ps[0]
+                    cand_relation_path = []
+                    ## find corresponding relations foreach entity triple
+                    for i in range(len(cand_entity_path) - 1):
+                        cand_relation_path.append(ent_dict[(cand_entity_path[i], cand_entity_path[i+1])])
+                    # print(cand_relation_path)
+                    ## form all possible relations "paths"
+                    cand_relation_ps = [[]]
+                    for rs in cand_relation_path:
+                        tmp = []
+                        while cand_relation_ps:
+                            c = cand_relation_ps.pop()
+                            for r_m in rs:
+                                tmp.append(c + [r_m])
+                        cand_relation_ps = tmp
+                    # print(cand_relation_ps)
+            for p in cand_relation_ps:
+                fea_dict.append([r_t, p])
+            #### check 1-hop neighbors
+            # if not len(fea_t):
+            #     fea_t = []
+            #     for r_m in head_r_dict[e1]:
+            #         if e2 in r_tail_dict[r_m]:
+            #             for e_m1, e_m2 in rel_dict[r_m]:
+            #                 fea_t.append([e_m1, r_t, e_m2])
+            #     for r_m in tail_r_dict[e2]:
+            #         if e1 in r_tail_dict[r_m]:
+            #             for e_m1, e_m2 in rel_dict[r_m]:
+            #                 fea_t.append([e_m1, r_t, e_m2])
+
+            print("====> matching features: " + str(len(cand_relation_ps)))
+            # all_fea_triples += fea_t
+        # print(all_fea_triples)
+        # all_fea_triples = set(all_fea_triples)
+        # all_fea_triples = np.array(all_fea_triples)
+        # return torch.from_numpy(all_fea_triples.astype('int64'))#.cuda()
+        return fea_dict
+
+    def get_rules_loss(self):
+        rel = self.embeddings[1]
+        rule_score = 0
+        zero_vec = torch.zeros(self.rank).cuda()
+        # zero_vec = torch.tensor([list(zero_vec)]).cuda()
+        # zero_vec = torch.transpose(zero_vec, 0, 1)
+        print("zero vec size: " + str(zero_vec.size()))
+        for r_t, rule in self.feas:
+            print("====> rule")
+            ## encode rules using average of all relations
+            r_t = torch.LongTensor([r_t]).cuda()
+            r_t_ebds = rel(r_t)[0]
+            # r_t_ebds = torch.transpose(rel(r_t), 0, 1)
+            idx_m = torch.LongTensor(rule).cuda()
+            r_m_ebds = rel(idx_m)
+            ## average to get path embedding
+            r_m_ebds = torch.mean(r_m_ebds, 0)
+            print("r_m size: " + str(r_m_ebds.size()))
+            # r_m_ebds = torch.tensor([list(r_m_ebds)]).cuda()
+            # r_m_ebds = torch.transpose(r_m_ebds, 0, 1)
+            # print(r_m_ebds)
+            # print(r_t_ebds)
+            # print(r_m_ebds.size())
+            # print(r_t_ebds.size())
+
+            r_m_re, r_m_im = r_m_ebds[:self.rank], r_m_ebds[self.rank:]
+            r_t_re, r_t_im = r_t_ebds[:self.rank], r_t_ebds[self.rank:]
+            print(r_m_ebds.size(), r_t_re.size(), zero_vec.size())
+            
+            # print("rule grad exists?: " + str(r_q_im.requires_grad))
+            # real penalty
+            print(torch.max(zero_vec, (r_m_re - r_t_re)))
+            rule_score += torch.sum(torch.max(zero_vec, (r_m_re - r_t_re)))
+            # imaginary penalty
+            rule_score += torch.sum(torch.square(r_m_im - r_t_im)).cuda() 
+        # rule_score *= self.mu
+        # print(rule_score.requires_grad)
+        return rule_score
