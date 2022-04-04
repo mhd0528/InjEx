@@ -5,6 +5,9 @@ result/*
 saved_models/*
 model_data.pkl
 
+# ignore Anyburl large files
+AnyBurl/*
+
 # ignore training & testing files
 logs/*
 kbc/data/*
