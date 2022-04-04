@@ -31,9 +31,9 @@ class Dataset(object):
         # print(self.data['train'])
 
         # select certain percentage of training data
-        total_train = len(self.data['train'])
-        train_percent = 0.05
-        train_idx = int(total_train * train_percent)
+        # total_train = len(self.data['train'])
+        # train_percent = 0.05
+        # train_idx = int(total_train * train_percent)
         # print("original training number: " + str(total_train))
         # self.data['train'] = self.data['train'][train_idx : train_idx * 2]
         # print("sample training number: " + str(len(self.data['train'])))

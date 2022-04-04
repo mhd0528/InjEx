@@ -17,7 +17,7 @@ from collections import defaultdict
 
 # DATA_PATH = pkg_resources.resource_filename('kbc', 'data/')
 # DATA_PATH = './data/'
-DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')
+DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')lalala
 
 def translate_cons(dataset, path, train_data, rule_type = 0):
     if rule_type == 0:
@@ -76,6 +76,39 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                         # out2.write(line)
                     except KeyError:
                         continue
+    # elif rule_type == 4:
+    #     # read in each rule, translate, extract triples from all training triples
+    #     # format: p, q, r, conf: triple_ids
+    #     rel2id = {}
+    #     with open(str(DATA_PATH) + '/' + dataset+'/rel_id') as f:
+    #         for i,line in enumerate(f):
+    #             rel = line.split('\t')[0]
+    #             rel_id = int(line.split('\t')[1])
+    #             rel2id[rel] = rel_id
+    #     # read in rule set
+    #     rule_df = pd.read_excel(path+'/Freebase_Rules.xlsx', sheet_name=None)['Type 4']
+    #     # print(rule_df.head())
+    #     with open(path+'/all_cons_4.txt','w') as out:
+    #         for id, row in rule_df.iterrows():
+    #             rel_p = '/' + row['p(x,y) <-'].replace('.', '/')
+    #             rel_q = '/' + row['q(x,z)'].replace('.', '/')
+    #             re_r = '/' + row['r(z,y)'].replace('.', '/')
+    #             conf = row['Confidence']
+    #             if conf >= 0.5:
+    #                 try:
+    #                     rule = str(rel2id[rel_p])+','+str(rel2id[rel_q])+','+str(rel2id[re_r])
+    #                     # extract triples from training set
+    #                     triple_ids = []
+    #                     for i, triple in enumerate(train_data):
+    #                         if triple[1] == rel2id[rel_q]:
+    #                             triple_ids.append(str(i))
+    #                     triple_ids_str = ' '.join(triple_ids)
+    #                     out.write('%s\t%s\t%s\n' % (rule, conf, triple_ids_str))
+    #                     print("rule found: " + str(rel_q))
+    #                     # out2.write(line)
+    #                 except KeyError:
+    #                     continue
+    #### type 4 rules from AnyBurl
     elif rule_type == 4:
         # read in each rule, translate, extract triples from all training triples
         # format: p, q, r, conf: triple_ids
@@ -86,15 +119,12 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                 rel_id = int(line.split('\t')[1])
                 rel2id[rel] = rel_id
         # read in rule set
-        rule_df = pd.read_excel(path+'/original/Freebase_Rules.xlsx', sheet_name=None)['Type 4']
-        # print(rule_df.head())
-        with open(path+'/all_cons_4.txt','w') as out:
-            for id, row in rule_df.iterrows():
-                rel_p = '/' + row['p(x,y) <-'].replace('.', '/')
-                rel_q = '/' + row['q(x,z)'].replace('.', '/')
-                re_r = '/' + row['r(z,y)'].replace('.', '/')
-                conf = row['Confidence']
-                if conf >= 0.8:
+        with open(os.path.join(path, 'AnyBurl_cons-type_4.txt')) as f, open(path+'/all_cons_4.txt','w') as out:
+            for line in f:
+                rule, conf = line[:-1].split('\t')
+                rel_p, head = rule.split(' <= ')
+                rel_q, re_r = head.split(',')
+                if conf >= 0.5:
                     try:
                         rule = str(rel2id[rel_p])+','+str(rel2id[rel_q])+','+str(rel2id[re_r])
                         # extract triples from training set
@@ -104,7 +134,7 @@ def translate_cons(dataset, path, train_data, rule_type = 0):
                                 triple_ids.append(str(i))
                         triple_ids_str = ' '.join(triple_ids)
                         out.write('%s\t%s\t%s\n' % (rule, conf, triple_ids_str))
-                        print("rule found: " + str(rule))
+                        print("rule found: " + str(rel_q))
                         # out2.write(line)
                     except KeyError:
                         continue

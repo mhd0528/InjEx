@@ -101,8 +101,10 @@ class KBCOptimizer(object):
                         l = (1-self.pi) * l + self.pi * (l_rule_fit + l_rule_reg)
 
                 if isinstance(self.model, models.ComplEx_supportNN):
-                    # print ("add rule injection term to loss function")
+                    # print ("add rule injection term for supportNN")
                     l_rule_constraint = self.model.get_rules_loss()
+                    print(l)
+                    print(l_rule_constraint)
                     l += l_rule_constraint
 
                 self.optimizer.zero_grad()

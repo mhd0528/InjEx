@@ -590,13 +590,14 @@ class ComplEx_supportNN(KBCModel):
     def __init__(
             self, sizes: Tuple[int, int, int], rank: int,
             init_size: float = 1e-3,
-            mu: float = 0.1
+            mu: float = 0.1,
             feas: list = [],
             sup: list = []
     ):
         super(ComplEx_supportNN, self).__init__()
         self.sizes = sizes
         self.rank = rank
+        self.mu = mu
         self.feas = feas
         self.sup = sup
 
@@ -805,41 +806,67 @@ class ComplEx_supportNN(KBCModel):
         # return torch.from_numpy(all_fea_triples.astype('int64'))#.cuda()
         return fea_dict
 
+    # def get_rules_loss(self):
+    #     rel = self.embeddings[1]
+    #     rule_score = 0
+    #     zero_vec = torch.zeros(self.rank).cuda()
+    #     # zero_vec = torch.tensor([list(zero_vec)]).cuda()
+    #     # zero_vec = torch.transpose(zero_vec, 0, 1)
+    #     # print("zero vec size: " + str(zero_vec.size()))
+    #     for r_t, rule in self.feas:
+    #         ## encode rules using average of all relations
+    #         r_t = torch.LongTensor([r_t]).cuda()
+    #         r_t_ebds = rel(r_t)[0]
+    #         # r_t_ebds = torch.transpose(rel(r_t), 0, 1)
+    #         idx_m = torch.LongTensor(rule).cuda()
+    #         r_m_ebds = rel(idx_m)
+    #         ## average to get path embedding
+    #         r_m_ebds = torch.mean(r_m_ebds, 0)
+    #         # r_m_ebds = torch.tensor([list(r_m_ebds)]).cuda()
+    #         # r_m_ebds = torch.transpose(r_m_ebds, 0, 1)
+    #         # print(r_m_ebds)
+    #         # print(r_t_ebds)
+    #         # print(r_m_ebds.size())
+    #         # print(r_t_ebds.size())
+
+    #         r_m_re, r_m_im = r_m_ebds[:self.rank], r_m_ebds[self.rank:]
+    #         r_t_re, r_t_im = r_t_ebds[:self.rank], r_t_ebds[self.rank:]
+    #         # print(r_m_ebds.size(), r_t_re.size(), zero_vec.size())
+            
+    #         # print("rule grad exists?: " + str(r_q_im.requires_grad))
+    #         # real penalty
+    #         rule_score += torch.sum(torch.max(zero_vec, (r_m_re - r_t_re)))
+    #         # imaginary penalty
+    #         rule_score += torch.sum(torch.square(r_m_im - r_t_im)).cuda() 
+    #     # rule_score *= self.mu
+    #     # print(rule_score.requires_grad)
+    #     return rule_score
+
     def get_rules_loss(self):
         rel = self.embeddings[1]
         rule_score = 0
-        zero_vec = torch.zeros(self.rank).cuda()
-        # zero_vec = torch.tensor([list(zero_vec)]).cuda()
-        # zero_vec = torch.transpose(zero_vec, 0, 1)
-        print("zero vec size: " + str(zero_vec.size()))
         for r_t, rule in self.feas:
-            print("====> rule")
             ## encode rules using average of all relations
             r_t = torch.LongTensor([r_t]).cuda()
             r_t_ebds = rel(r_t)[0]
-            # r_t_ebds = torch.transpose(rel(r_t), 0, 1)
             idx_m = torch.LongTensor(rule).cuda()
             r_m_ebds = rel(idx_m)
             ## average to get path embedding
             r_m_ebds = torch.mean(r_m_ebds, 0)
-            print("r_m size: " + str(r_m_ebds.size()))
-            # r_m_ebds = torch.tensor([list(r_m_ebds)]).cuda()
-            # r_m_ebds = torch.transpose(r_m_ebds, 0, 1)
             # print(r_m_ebds)
-            # print(r_t_ebds)
             # print(r_m_ebds.size())
             # print(r_t_ebds.size())
 
             r_m_re, r_m_im = r_m_ebds[:self.rank], r_m_ebds[self.rank:]
             r_t_re, r_t_im = r_t_ebds[:self.rank], r_t_ebds[self.rank:]
-            print(r_m_ebds.size(), r_t_re.size(), zero_vec.size())
+            # print(r_p_ebds.size(), r_p_re.size(), self.rank)
             
             # print("rule grad exists?: " + str(r_q_im.requires_grad))
             # real penalty
-            print(torch.max(zero_vec, (r_m_re - r_t_re)))
-            rule_score += torch.sum(torch.max(zero_vec, (r_m_re - r_t_re)))
+            rule_score += torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_m_re - r_t_re)))
             # imaginary penalty
             rule_score += torch.sum(torch.square(r_m_im - r_t_im)).cuda() 
-        # rule_score *= self.mu
+
+        rule_score *= self.mu
         # print(rule_score.requires_grad)
         return rule_score

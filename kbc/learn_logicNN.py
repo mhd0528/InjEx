@@ -139,7 +139,7 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     break
         # rule_list = rule_list[:152]
     elif args.rule_type == 4:
-        kbc_id_conf_f = dataset_path + '/all_cons_4.txt'
+        kbc_id_conf_f = dataset_path + '/cons.txt'
         rule_list = []
         with open(kbc_id_conf_f, 'r') as f:
             while True:
@@ -173,9 +173,9 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.1),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.01),
     'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
-    'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.1, feas={}, sup=[])
+    'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
 }[args.model]()
 
 device = 'cuda'
@@ -237,8 +237,9 @@ if isinstance(model, ComplEx_supportNN):
     #### generate new groundings/new rules (paths) with support set
     model.feas = model.general_fea_generator(model.sup, examples)
     print("new features: " + str((model.feas)))
-    #### add new groundings to training data
+    #### add new groundings(supporting triples) to training data
     # examples = torch.cat((examples, model.feas), 0)
+    examples = torch.cat((examples, model.sup), 0)
     # print(model.get_rules_loss())
     print("\n======> Number of training triples + new groundings: " + str(examples.size()))
     # exit()
@@ -271,7 +272,7 @@ for e in range(args.max_epochs):
             print("generate new rule features: " + str(optimizer.model.rule_feas.size()))
             # new_examples = optimizer.model.rule_feas
         ## generate pi for current epoch
-        optimizer.pi = optimizer.get_pi(e, params=optimizer.model.pi_params)
+        # optimizer.pi = optimizer.get_pi(e, params=optimizer.model.pi_params)
 
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, ComplEx_NNE):
