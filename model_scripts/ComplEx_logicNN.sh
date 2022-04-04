@@ -13,7 +13,7 @@
 #SBATCH --time=72:00:00               # Time limit hrs:min:sec
 
 echo "starting job"
-echo "train: eval_1207; test: eval_1207; valid: eval_1207; rule: _entailment_cons-rq"
+echo "train: train-04_04-0; test: test-04_04-0; valid: valid-04_04-0; rule: AnyBurl_cons-type_4"
 module load singularity
 
 T1=`date +%Y%m%d-%H%M%S`

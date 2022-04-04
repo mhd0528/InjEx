@@ -149,6 +149,7 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     # turn into: p, q, r, conf, tuples (e1, q, e2)
                     line.replace('\n', '')
                     rels = line.split('\t')[0]
+                    # print(rels)
                     rel_tup = list(map(int, rels.split(',')))
                     conf = float(line.split('\t')[1])
                     triple_ids = map(int, line.split('\t')[2].split(' '))
@@ -167,7 +168,8 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
     print('model is complex-nne or ComplEx_logicNN')
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
-    print ("\n======> Number of rules: " + str(len(rule_list)) + ' ' + str(rule_list[0]))
+    print ("\n======> Number of rules: " + str(len(rule_list)))
+    # print(str(rule_list[0]))
     # print(rule_list)
 
 model = {

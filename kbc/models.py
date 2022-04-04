@@ -540,8 +540,7 @@ class ComplEx_logicNN(KBCModel):
             # for all entities, score (e2, r, e3) and filter
             # then maximize score of (e1, p, e3)
             # select top 0.5% score tups as valid tuples
-            valid_num = ent_num // 2000
-            total_tup_num = valid_num * len(self.rule_list)
+            valid_num = ent_num // 5000
             all_valid_tups = []
             for i, fea in enumerate(self.rule_list):
                 r_p = fea[0][0]
@@ -561,11 +560,14 @@ class ComplEx_logicNN(KBCModel):
                         valid_tups.append([tup[2], r_r, e])
                     valid_tups = torch.from_numpy(np.array(valid_tups).astype('int64')).cuda()
                     score_tups = torch.transpose(self.score(valid_tups), 0, 1)
+                    print(score_tups.size())
+                    print(torch.mean(score_tups))
                     # select top 1% score tups as valid tuples
                     valid_idxs = torch.topk(score_tups, k=valid_num)[1].long().flatten()
                     valid_tups = torch.index_select(valid_tups, 0, valid_idxs)
                     all_valid_tups.append(valid_tups)
             all_valid_tups = torch.cat(all_valid_tups, dim=0)
+            exit()
             # print("======> checking format of created tuples: " + str(all_valid_tups[0]))
             #### precceprocal setting
             # if len(all_valid_tups):
