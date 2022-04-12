@@ -17,7 +17,7 @@ from collections import defaultdict
 
 # DATA_PATH = pkg_resources.resource_filename('kbc', 'data/')
 # DATA_PATH = './data/'
-DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')
+DATA_PATH = Path('/home/haodi/ComplEx-Inject/kbc/data/')
 
 def translate_cons(dataset, path, train_data, rule_type = 0):
     if rule_type == 0:

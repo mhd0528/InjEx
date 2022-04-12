@@ -94,6 +94,11 @@ parser.add_argument(
     '--rule_type', default=0, type=int,
     help="Rule type for injection:\n\t0: entailment \n\t4: type 4"
 )
+parser.add_argument(
+    '--mu', default=0.1, type=float,
+    help="weight for the teacher (rules)"
+)
+
 args = parser.parse_args()
 print("\n======> Parameter settings: " + str(args))
 dataset = Dataset(args.dataset)
@@ -152,12 +157,13 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     # print(rels)
                     rel_tup = list(map(int, rels.split(',')))
                     conf = float(line.split('\t')[1])
-                    triple_ids = map(int, line.split('\t')[2].split(' '))
-                    tuple_list = []
-                    for id in triple_ids:
-                        tuple = examples[id]
-                        tuple_list.append(tuple)
-                    rule_list.append((rel_tup, conf, tuple_list))
+                    # triple_ids = map(int, line.split('\t')[2].split(' '))
+                    # tuple_list = []
+                    # for id in triple_ids:
+                    #     tuple = examples[id]
+                    #     tuple_list.append(tuple)
+                    # rule_list.append((rel_tup, conf, tuple_list))
+                    rule_list.append((rel_tup[0], rel_tup[1:], conf))
                 else:
                     break
     # return rule_list[200:300]
@@ -169,13 +175,13 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
     print ("\n======> Number of rules: " + str(len(rule_list)))
-    # print(str(rule_list[0]))
+    print((rule_list[0]))
     # print(rule_list)
 
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, 0.01),
+    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, args.mu, args.rule_type),
     'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
     'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
 }[args.model]()

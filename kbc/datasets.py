@@ -16,7 +16,8 @@ from models import KBCModel
 
 
 # DATA_PATH = Path(pkg_resources.resource_filename('kbc', 'data/'))
-DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')
+# DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data/')
+DATA_PATH = Path('/home/ComplEx-Inject/kbc/data/')
 
 
 class Dataset(object):

@@ -11,6 +11,7 @@ import torch
 from torch import nn
 from collections import defaultdict
 import numpy as np
+import math
 
 
 class KBCModel(nn.Module, ABC):
@@ -191,7 +192,8 @@ class ComplEx_NNE(KBCModel):
             self, sizes: Tuple[int, int, int], rank: int,
             rule_list: list, 
             init_size: float = 1e-3, 
-            mu: float = 0.1
+            mu: float = 0.1,
+            rule_type: int = 0
     ):
         super(ComplEx_NNE, self).__init__()
         self.sizes = sizes
@@ -208,7 +210,16 @@ class ComplEx_NNE(KBCModel):
         #self.embeddings[0].weight.data += torch.abs(torch.min(self.embeddings[0].weight.data)) + 1e-3
         self.embeddings[1].weight.data *= init_size
         #self.embeddings[1].weight.data += torch.abs(torch.min(self.embeddings[1].weight.data))
+
+        #### limit relation embedding range
+        self.rel_embedding_range = 1
+        nn.init.uniform_(
+            tensor = self.embeddings[1].weight.data, 
+            a=0, 
+            b=self.rel_embedding_range
+        )
         self.mu = mu
+        self.rule_type = rule_type
         print("======> mu value: " + str(self.mu))
 
     def score(self, x):
@@ -306,34 +317,70 @@ class ComplEx_NNE(KBCModel):
         return score * self.mu
     
     def get_rules_loss(self):
-        # get embeddings for all r_p and r_q
-        rel = self.embeddings[1]
-        rule_score = 0
-        for i, rule in enumerate(self.rule_list):
-            r_p, r_q, conf, r_dir = rule
-            r_p = torch.LongTensor([r_p]).cuda()
-            r_q = torch.LongTensor([r_q]).cuda()
-            r_p_ebds = torch.transpose(rel(r_p), 0, 1)
-            r_q_ebds = torch.transpose(rel(r_q), 0, 1)
-            # r_p_ebds = rel(r_p)[0]
-            # r_q_ebds = rel(r_q)[0]
-            r_p_re, r_p_im = r_p_ebds[:self.rank], r_p_ebds[self.rank:]
-            r_q_re, r_q_im = r_q_ebds[:self.rank], r_q_ebds[self.rank:]
-            # print(r_p_ebds.size(), r_p_re.size(), self.rank)
-            
-            r_p_re *= conf
-            r_p_im *= r_dir
-            r_q_re *= conf
-            # print("rule grad exists?: " + str(r_q_im.requires_grad))
-            # real penalty
-            rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
-            # imaginary penalty
-            rule_score += self.mu * torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
+        if self.rule_type == 0:
+            # get embeddings for all r_p and r_q
+            rel = self.embeddings[1]
+            rule_score = 0
+            for i, rule in enumerate(self.rule_list):
+                r_p, r_q, conf, r_dir = rule
+                r_p = torch.LongTensor([r_p]).cuda()
+                r_q = torch.LongTensor([r_q]).cuda()
+                r_p_ebds = torch.transpose(rel(r_p), 0, 1)
+                r_q_ebds = torch.transpose(rel(r_q), 0, 1)
+                # r_p_ebds = rel(r_p)[0]
+                # r_q_ebds = rel(r_q)[0]
+                r_p_re, r_p_im = r_p_ebds[:self.rank], r_p_ebds[self.rank:]
+                r_q_re, r_q_im = r_q_ebds[:self.rank], r_q_ebds[self.rank:]
+                # print(r_p_ebds.size(), r_p_re.size(), self.rank)
+                
+                r_p_re *= conf
+                r_p_im *= r_dir
+                r_q_re *= conf
+                # print("rule grad exists?: " + str(r_q_im.requires_grad))
+                # real penalty
+                rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
+                # imaginary penalty
+                rule_score += self.mu * torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
 
-        rule_score /= len(self.rule_list)
-        # rule_score *= self.mu
-        # print(rule_score.requires_grad)
-        return rule_score
+            rule_score /= len(self.rule_list)
+            # rule_score *= self.mu
+            # print(rule_score.requires_grad)
+            return rule_score
+
+        if self.rule_type == 4:
+            ## Re(tail) > 1/R * Re(head_i)
+            ## Im(tail) == 1/R * Im(head_i)
+            head_para = math.sqrt(self.rel_embedding_range * self.rank)
+            ## get embeddings for all head and tail relations
+            ## head relations ebd are combined using element-wise multiply
+            rel = self.embeddings[1]
+            rule_score = 0
+            for i, rule in enumerate(self.rule_list):
+                tail, head, conf = rule
+                tail = torch.LongTensor([tail]).cuda()
+                tail_ebd = torch.transpose(rel(tail), 0, 1)
+                head_ebd = torch.ones(self.rank * 2).cuda()
+                for r in head:
+                    r = torch.LongTensor([r]).cuda()
+                    head_ebd = head_ebd * rel(r)
+                head_ebd = torch.transpose(head_ebd, 0, 1) / head_para
+                # r_p_ebds = rel(r_p)[0]
+                # r_q_ebds = rel(r_q)[0]
+                tail_re, tail_im = tail_ebd[:self.rank], tail_ebd[self.rank:]
+                head_re, head_im = head_ebd[:self.rank], head_ebd[self.rank:]
+                # print(r_p_ebds.size(), r_p_re.size(), self.rank)
+                
+                # print("rule grad exists?: " + str(r_q_im.requires_grad))
+                # real penalty
+                rule_score += self.mu * conf * torch.sum(torch.max(torch.zeros(self.rank).cuda(), head_re - tail_re))
+                # imaginary penalty
+                rule_score += self.mu * conf * torch.sum(torch.square(tail_im - head_im)).cuda()
+
+            rule_score /= len(self.rule_list)
+            # rule_score *= self.mu
+            # print(rule_score.requires_grad)
+            return rule_score
+
 
 class ComplEx_logicNN(KBCModel):
     def __init__(
@@ -382,6 +429,7 @@ class ComplEx_logicNN(KBCModel):
         lhs = self.embeddings[0](x[:, 0])
         rel = self.embeddings[1](x[:, 1])
         rhs = self.embeddings[0](x[:, 2])
+        ## use relation direction for extracted rule features (groundings)
         if len(x[0]) == 4:
             r_dirs = torch.zeros(len(x), len(x)).cuda()
             for i, r_dir in enumerate(x[:, 3]):
@@ -560,14 +608,14 @@ class ComplEx_logicNN(KBCModel):
                         valid_tups.append([tup[2], r_r, e])
                     valid_tups = torch.from_numpy(np.array(valid_tups).astype('int64')).cuda()
                     score_tups = torch.transpose(self.score(valid_tups), 0, 1)
-                    print(score_tups.size())
-                    print(torch.mean(score_tups))
+                    # print(score_tups.size())
                     # select top 1% score tups as valid tuples
                     valid_idxs = torch.topk(score_tups, k=valid_num)[1].long().flatten()
                     valid_tups = torch.index_select(valid_tups, 0, valid_idxs)
                     all_valid_tups.append(valid_tups)
+            print(torch.topk(score_tups, k=10)[0])
             all_valid_tups = torch.cat(all_valid_tups, dim=0)
-            exit()
+            # exit()
             # print("======> checking format of created tuples: " + str(all_valid_tups[0]))
             #### precceprocal setting
             # if len(all_valid_tups):
