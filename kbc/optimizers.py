@@ -114,7 +114,7 @@ class KBCOptimizer(object):
                 # round only entity embeddings, only < 0 or > 1, others stay the same
                 if rule_type == 0:
                     if isinstance(self.model, models.ComplEx_NNE) or isinstance(self.model, models.ComplEx_logicNN):
-                        print("clamping entity embeddeing constraint")
+                        # print("clamping entity embeddeing constraint")
                         self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
                         # with torch.no_grad():
                         #     for param in self.model.parameters():
@@ -124,7 +124,10 @@ class KBCOptimizer(object):
                 b_begin += self.batch_size
                 b_cnt += 1
                 bar.update(input_batch.shape[0])
-                bar.set_postfix(loss=f'{l.item():.0f}') 
+                if isinstance(self.model, models.ComplEx_NNE):
+                    bar.set_postfix(loss=f'{l.item():.3f}', mu=self.model.mu)
+                else:
+                    bar.set_postfix(loss=f'{l.item():.3f}')
 
     # used for ComplEx_origin & injection, java version
     def epoch_2(self, examples: torch.LongTensor, dataset):

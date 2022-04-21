@@ -213,11 +213,11 @@ class ComplEx_NNE(KBCModel):
 
         #### limit relation embedding range
         self.rel_embedding_range = 1
-        nn.init.uniform_(
-            tensor = self.embeddings[1].weight.data, 
-            a=0, 
-            b=self.rel_embedding_range
-        )
+        # nn.init.uniform_(
+        #     tensor = self.embeddings[1].weight.data, 
+        #     a=0, 
+        #     b=self.rel_embedding_range
+        # )
         self.mu = mu
         self.rule_type = rule_type
         print("======> mu value: " + str(self.mu))
@@ -338,9 +338,10 @@ class ComplEx_NNE(KBCModel):
                 r_q_re *= conf
                 # print("rule grad exists?: " + str(r_q_im.requires_grad))
                 # real penalty
-                rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
+                # rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
+                rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_q_re - r_p_re)))
                 # imaginary penalty
-                rule_score += self.mu * torch.sum(torch.square(r_p_im - r_q_im) * conf).cuda() 
+                rule_score += self.mu * torch.sum(torch.square(r_q_im - r_p_im) * conf).cuda() 
 
             rule_score /= len(self.rule_list)
             # rule_score *= self.mu
@@ -363,7 +364,7 @@ class ComplEx_NNE(KBCModel):
                 for r in head:
                     r = torch.LongTensor([r]).cuda()
                     head_ebd = head_ebd * rel(r)
-                head_ebd = torch.transpose(head_ebd, 0, 1) / head_para
+                head_ebd = torch.transpose(head_ebd, 0, 1)# / head_para
                 # r_p_ebds = rel(r_p)[0]
                 # r_q_ebds = rel(r_q)[0]
                 tail_re, tail_im = tail_ebd[:self.rank], tail_ebd[self.rank:]
@@ -372,6 +373,7 @@ class ComplEx_NNE(KBCModel):
                 
                 # print("rule grad exists?: " + str(r_q_im.requires_grad))
                 # real penalty
+                # rule_score += self.mu * conf * torch.sum(torch.square(head_re - tail_re)).cuda()
                 rule_score += self.mu * conf * torch.sum(torch.max(torch.zeros(self.rank).cuda(), head_re - tail_re))
                 # imaginary penalty
                 rule_score += self.mu * conf * torch.sum(torch.square(tail_im - head_im)).cuda()
