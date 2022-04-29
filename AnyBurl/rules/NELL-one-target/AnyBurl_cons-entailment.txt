@@ -1,0 +1,5 @@
+concept:bankbankincountry,concept:hasofficeincountry	0.0117647058824
+-concept:sportschoolincountry,concept:sportfansincountry_inv	0.0188679245283
+concept:teamcoach,concept:athleteledsportsteam_inv	0.00662251655629
+-concept:bankbankincountry,concept:hasofficeincountry_inv	0.010752688172
+-concept:parentofperson,concept:fatherofperson_inv	0.020202020202

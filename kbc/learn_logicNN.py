@@ -24,7 +24,7 @@ from datetime import datetime
 
 torch.cuda.empty_cache()
 
-big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', 'family', 'NELL']
+big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', 'family', 'NELL', 'Wiki']
 datasets = big_datasets
 
 parser = argparse.ArgumentParser(

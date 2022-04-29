@@ -204,8 +204,8 @@ def prepare_dataset(path, name):
     for f in files:
         examples = pickle.load(open(Path(DATA_PATH) / name / (f + '.pickle'), 'rb'))
         for lhs, rel, rhs in examples:
-            # to_skip['lhs'][(rhs, rel + n_relations)].add(lhs)  # reciprocals
-            to_skip['lhs'][(rhs, rel)].add(lhs) # no reciprocals
+            to_skip['lhs'][(rhs, rel + n_relations)].add(lhs)  # reciprocals
+            # to_skip['lhs'][(rhs, rel)].add(lhs) # no reciprocals
             to_skip['rhs'][(lhs, rel)].add(rhs)
 
     to_skip_final = {'lhs': {}, 'rhs': {}}
@@ -236,12 +236,12 @@ def prepare_dataset(path, name):
     out.close()
     
     # translate rules
-    translate_cons(name, path, examples, 4)
+    translate_cons(name, path, examples, 0)
 
 
 if __name__ == "__main__":
     # datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
-    datasets = ['FB15K', 'FB237', 'NELL']
+    datasets = ['FB15K', 'FB237', 'NELL', 'WN18RR', 'Wiki']
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:

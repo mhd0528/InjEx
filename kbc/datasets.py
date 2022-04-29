@@ -67,7 +67,7 @@ class Dataset(object):
                     self.n_predicates += 1
                 else:
                     break
-        # self.n_predicates *= 2
+        self.n_predicates *= 2
         # print ("\n======> Number of entities and 2*relations: " + str(self.n_entities) + ' ' + str(self.n_predicates))
 
         inp_f = open(str(self.root / f'to_skip.pickle'), 'rb')
@@ -82,9 +82,9 @@ class Dataset(object):
         tmp = np.copy(copy[:, 0])
         copy[:, 0] = copy[:, 2]
         copy[:, 2] = tmp
-        # copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
-        # return np.vstack((self.data['train'], copy))
-        return self.data['train']
+        copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
+        return np.vstack((self.data['train'], copy))
+        # return self.data['train']
 
     def eval(
             self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',
@@ -108,7 +108,7 @@ class Dataset(object):
                 tmp = torch.clone(q[:, 0])
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
-                # q[:, 1] += self.n_predicates // 2
+                q[:, 1] += self.n_predicates // 2
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             mean_reciprocal_rank[m] = torch.mean(1. / ranks).item()
             hits_at[m] = torch.FloatTensor((list(map(
@@ -142,7 +142,7 @@ class Dataset(object):
                 tmp = torch.clone(q[:, 0])
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
-                # q[:, 1] += self.n_predicates // 2
+                q[:, 1] += self.n_predicates // 2
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             rank_res.append(ranks)
 
