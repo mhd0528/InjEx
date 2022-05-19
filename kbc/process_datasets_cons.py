@@ -39,7 +39,7 @@ def translate_cons(dataset, path, train_data, rule_type = 1):
                     prefix = '-'
                     body = body[1:]
                 # if 0.9 > float(conf) >= 0.5:
-                if float(conf) >= 0.5:
+                if float(conf) >= 0.8:
                     try:
                         rule = prefix + str(rel2id[body])+','+str(rel2id[head])
                         out.write('%s\t%s\n' % (rule,conf))

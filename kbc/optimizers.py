@@ -61,7 +61,7 @@ class KBCOptimizer(object):
                 l_reg = self.regularizer.forward(factors)
                 l = l_fit + l_reg
 
-                if isinstance(self.model, models.ComplEx_NNE):
+                if isinstance(self.model, models.InjEx):
                     # print ("add rule injection term to loss function")
                     # l_rule_constraint = self.model.get_rules_score()
                     if self.model.rule_type:
@@ -81,10 +81,10 @@ class KBCOptimizer(object):
                 self.optimizer.zero_grad()
                 l.backward()
                 self.optimizer.step()
-                # constraint on entity embeddings, should be used for ComplEx_NNE and ComplEx_logicNN with entailment rules
+                # constraint on entity embeddings, should be used for InjEx and ComplEx_logicNN with entailment rules
                 # round only entity embeddings, only < 0 or > 1, others stay the same
                 # if rule_type == 0:
-                if isinstance(self.model, models.ComplEx_NNE) or isinstance(self.model, models.ComplEx_logicNN):
+                if isinstance(self.model, models.InjEx) or isinstance(self.model, models.ComplEx_logicNN):
                     # print("clamping entity embeddeing constraint")
                     self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
                     self.model.embeddings[1].weight.data = self.model.embeddings[1].weight.data.clamp(1e-3, 1)
@@ -96,7 +96,7 @@ class KBCOptimizer(object):
                 b_begin += self.batch_size
                 b_cnt += 1
                 bar.update(input_batch.shape[0])
-                if isinstance(self.model, models.ComplEx_NNE):
+                if isinstance(self.model, models.InjEx):
                     bar.set_postfix(loss=f'{l.item():.3f}', mu=self.model.mu)
                 else:
                     bar.set_postfix(loss=f'{l.item():.3f}')

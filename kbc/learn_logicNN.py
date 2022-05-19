@@ -15,7 +15,7 @@ import pickle
 import os
 
 from datasets import Dataset
-from models import CP, ComplEx, ComplEx_NNE
+from models import CP, ComplEx, InjEx
 from regularizers import F2, N3
 from optimizers import KBCOptimizer
 
@@ -36,7 +36,7 @@ parser.add_argument(
     help="Dataset in {}".format(datasets)
 )
 
-models = ['CP', 'ComplEx', 'ComplEx_NNE', 'ComplEx_logicNN', 'ComplEx_supportNN']
+models = ['CP', 'ComplEx', 'InjEx', 'ComplEx_logicNN', 'ComplEx_supportNN']
 parser.add_argument(
     '--model', choices=models,
     help="Model in {}".format(models)
@@ -167,7 +167,7 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
     return rule_list
 
 print("======> Checking model type: " + args.model)
-if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
+if args.model == 'InjEx' or args.model == 'ComplEx_logicNN':
     print('model is complex-nne or ComplEx_logicNN')
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
@@ -183,7 +183,7 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'ComplEx_NNE': lambda: ComplEx_NNE(dataset.get_shape(), args.rank, rule_list, args.init, args.mu, args.rule_type),
+    'InjEx': lambda: InjEx(dataset.get_shape(), args.rank, rule_list, args.init, args.mu, args.rule_type),
     'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
     'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
 }[args.model]()
@@ -204,9 +204,9 @@ optim_method = {
 }[args.optimizer]()
 
 ######## preprocess for different models
-#### ComplEx_NNE_AER
+#### InjEx
 ## set mu value
-if args.model == 'ComplEx_NNE':
+if args.model == 'InjEx':
     init_mu = model.mu
 
 ## load in a pretrained model (use the pre-trained embeddings)
@@ -236,7 +236,7 @@ cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
     if (e == 30) or (e == 70):
-        if isinstance(optimizer.model, ComplEx_NNE):
+        if isinstance(optimizer.model, InjEx):
             model.mu = 2 * model.mu
     cur_loss = optimizer.epoch(examples, args.rule_type)
 
@@ -259,7 +259,7 @@ for e in range(args.max_epochs):
 now = datetime.now()
 time_stamp = str(now)[:19].replace(':','-').replace(' ', '_')
 # write relation embeddings of each rule at the end
-if isinstance(optimizer.model, ComplEx_NNE):
+if isinstance(optimizer.model, InjEx):
     all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_real_compare' + '.txt'
     all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_img_compare' + '.txt'
     model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '.pkl'

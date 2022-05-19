@@ -187,7 +187,7 @@ class ComplEx(KBCModel):
             lhs[0] * rel[1] + lhs[1] * rel[0]
         ], 1)
 
-class ComplEx_NNE(KBCModel):
+class InjEx(KBCModel):
     def __init__(
             self, sizes: Tuple[int, int, int], rank: int,
             rule_list: list, 
@@ -195,7 +195,7 @@ class ComplEx_NNE(KBCModel):
             mu: float = 0.1,
             rule_type: int = 0
     ):
-        super(ComplEx_NNE, self).__init__()
+        super(InjEx, self).__init__()
         self.sizes = sizes
         self.rank = rank
         self.rule_list = rule_list
