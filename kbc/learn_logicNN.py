@@ -15,7 +15,7 @@ import pickle
 import os
 
 from datasets import Dataset
-from models import CP, ComplEx, ComplEx_NNE, ComplEx_logicNN, ComplEx_supportNN
+from models import CP, ComplEx, ComplEx_NNE
 from regularizers import F2, N3
 from optimizers import KBCOptimizer
 
@@ -92,7 +92,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--rule_type', default=0, type=int,
-    help="Rule type for injection:\n\t0: entailment \n\t4: type 4"
+    help="Rule type for injection:\n\t0: combine entailment and composition \n\t1: entailment \n\t4: type 4(composition)"
 )
 parser.add_argument(
     '--mu', default=0.1, type=float,
@@ -117,7 +117,11 @@ print ("\n======> Number of entities and relations: " + str(ent_num) + ' ' + str
 # print(dataset.get_shape())
 
 def rule_reader(dataset_path, rule_type, train_data, ent_num):
-    if args.rule_type == 0:
+    if rule_type == 0:
+        rule_list = []
+        rule_list.append(rule_reader(dataset_path, 1, train_data, ent_num))
+        rule_list.append(rule_reader(dataset_path, 4, train_data, ent_num))
+    elif rule_type == 1:
         kbc_id_conf_f = dataset_path + '/cons.txt'
         rule_list = []
         # r_num = dataset.get_shape()[1] // 2
@@ -136,15 +140,14 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     r_p = int(tokens[0].split(',')[0])
                     r_q = int(tokens[0].split(',')[1])
                     conf = float(tokens[1])
-                    # print(r_p, r_q, conf)
                     # if conf < 0.9 and conf >= 0.8:
                     # if conf == 1.0:
                     rule_list.append((r_p, r_q, conf, flag))
                 else:
                     break
         # rule_list = rule_list[:152]
-    elif args.rule_type == 4:
-        kbc_id_conf_f = dataset_path + '/cons.txt'
+    elif rule_type == 4:
+        kbc_id_conf_f = dataset_path + '/cons_4.txt'
         rule_list = []
         with open(kbc_id_conf_f, 'r') as f:
             while True:
@@ -157,12 +160,6 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     # print(rels)
                     rel_tup = list(map(int, rels.split(',')))
                     conf = float(line.split('\t')[1])
-                    # triple_ids = map(int, line.split('\t')[2].split(' '))
-                    # tuple_list = []
-                    # for id in triple_ids:
-                    #     tuple = examples[id]
-                    #     tuple_list.append(tuple)
-                    # rule_list.append((rel_tup, conf, tuple_list))
                     rule_list.append((rel_tup[0], rel_tup[1:], conf))
                 else:
                     break
@@ -174,9 +171,14 @@ if args.model == 'ComplEx_NNE' or args.model == 'ComplEx_logicNN':
     print('model is complex-nne or ComplEx_logicNN')
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
-    print ("\n======> Number of rules: " + str(len(rule_list)))
-    print((rule_list[0]))
-    # print(rule_list)
+    if args.rule_type:
+        print ("\n======> Number of rules: " + str(len(rule_list)))
+        print((rule_list[0]))
+    ## combination rule injection
+    else:
+        print ("\n======> Number of entailment rules: " + str(len(rule_list[0])))
+        print ("\n======> Number of composition rules: " + str(len(rule_list[1])))
+        print((rule_list[0][0]))
 
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
@@ -187,6 +189,7 @@ model = {
 }[args.model]()
 
 device = 'cuda'
+torch.cuda.empty_cache()
 model.to(device)
 regularizer = {
     'F2': F2(args.reg),
@@ -206,19 +209,6 @@ optim_method = {
 if args.model == 'ComplEx_NNE':
     init_mu = model.mu
 
-#### ComplEx_logicNN
-## Extract features for teach student network with entailment rules
-## for each rule, create its own feature and feature idx
-if isinstance(model, ComplEx_logicNN):
-    model.fea_generator(args.rule_type, examples, ent_num)
-    # if too many triples, sample and use 20%
-    fea_num = len(model.rule_feas)
-    if fea_num > 200000:
-        print("=======> original feature number is too large:", str(fea_num))
-        sample_num = fea_num // 5
-        model.rule_feas = model.rule_feas[torch.randint(fea_num, (sample_num, ))]
-
-    print("=======> finish rule feature generation", str(len(model.rule_feas)))
 ## load in a pretrained model (use the pre-trained embeddings)
 # (old_model, old_data) = torch.load('saved_models/2021-09-01_21-13-27_FB237_ComplEx.pkl')
 # model.embeddings = old_model.embeddings
@@ -229,29 +219,6 @@ if isinstance(model, ComplEx_logicNN):
 n_train_batches = examples.shape[0] / args.batch_size
 print("training batch number: " + str(n_train_batches))
 optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size, n_train_batches)
-
-#### ComplEx_supportNN
-if isinstance(model, ComplEx_supportNN):
-    #### read in support set
-    files = ['valid_support', 'test_support']
-    for f in files:
-        file_path = os.path.join(dataset_path, f)
-        print(file_path)
-        model.sup.append(model.support_reader(file_path, dataset.rel_id, dataset.ent_id))
-    ## combine valid and test support sets
-    model.sup = torch.cat((model.sup[0], model.sup[1]), 0)
-    # print(model.sup)
-    print("support set: " + str(len(model.sup)))
-    #### generate new groundings/new rules (paths) with support set
-    model.feas = model.general_fea_generator(model.sup, examples)
-    print("new features: " + str((model.feas)))
-    #### add new groundings(supporting triples) to training data
-    # examples = torch.cat((examples, model.feas), 0)
-    examples = torch.cat((examples, model.sup), 0)
-    # print(model.get_rules_loss())
-    print("\n======> Number of training triples + new groundings: " + str(examples.size()))
-    # exit()
-
 
 def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
     """
@@ -268,33 +235,9 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
-    if isinstance(optimizer.model, ComplEx_logicNN):
-        # print("Epoch {}: ".format(e))
-        # print("   pi: {}".format(optimizer.pi))
-        # generate rule related training data with type 4 rules
-        # if args.rule_type:
-        # if e % 20 == 0:
-        if e == 30 or e == 90 or e == 0:
-            ## generate new features for better training
-            optimizer.model.fea_generator(args.rule_type, examples, ent_num)
-            print("generate new rule features: " + str(optimizer.model.rule_feas.size()))
-            # new_examples = optimizer.model.rule_feas
-        ## generate pi for current epoch
-        # optimizer.pi = optimizer.get_pi(e, params=optimizer.model.pi_params)
-
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, ComplEx_NNE):
             model.mu = 2 * model.mu
-
-    # if e > 30 and e < 90:
-    #     if (e // 5) % 2:
-    #         cur_loss = optimizer.epoch(examples, args.rule_type)
-    #     else:
-    #         cur_loss = optimizer.epoch(new_examples, args.rule_type)
-    # elif e > 90:
-    #     cur_loss = optimizer.epoch(new_examples, args.rule_type)
-    # else:
-    #     cur_loss = optimizer.epoch(examples, args.rule_type)
     cur_loss = optimizer.epoch(examples, args.rule_type)
 
     if (e) % args.valid == 0:

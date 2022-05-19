@@ -5,12 +5,14 @@ import os
 
 # rule_path = './rules/FB237'
 # rule_path = './rules/NELL-one'
-rule_path = './rules/Wiki-one'
+# rule_path = './rules/Wiki-one'
+# rule_path = './rules/FB237-target'
+rule_path = './rules/Yago'
 # out_path = './'
-rule_type = 0
+rule_type = 4
 
 time_list = ['rules-10', 'rules-50', 'rules-100']
-out_f = open(os.path.join(rule_path, 'AnyBurl_cons-entailment.txt'), 'w')
+out_f = open(os.path.join(rule_path, 'AnyBurl_cons-type_4.txt'), 'w')
 r_set = set()
 for t in time_list:
     with open(os.path.join(rule_path, t)) as f:
@@ -19,7 +21,7 @@ for t in time_list:
             conf = float(conf)
             prefix = ''
             #### only extract rules with conf > 0.5
-            if conf > 0.5:
+            if conf > 0.0:
                 tail, head = rule.split(' <= ')
                 tail = tail[:-1]
                 head = head[:-1]
@@ -39,7 +41,9 @@ for t in time_list:
                     e_p1, e_p2 = e_p.split(',')
                     e_q1, e_q2 = e_q.split(',')
                     if e_p1 == e_q2 or e_q2 == e_p1:
-                        prefix = '-'
+                        prefix = '-'                    
+                    # target_rels = ['/award/award_category/category_of', '/film/film/country', '/award/award_nominee/award_nominations./award/award_nomination/award_nominee', '/people/person/profession', '/base/aareas/schema/administrative_area/administrative_parent', '/film/film/estimated_budget./measurement_unit/dated_money_value/currency', '/location/statistical_region/gdp_nominal_per_capita./measurement_unit/dated_money_value/currency', '/people/person/nationality']
+                    # if r_p in target_rels:
                     out_f.write(prefix + r_p + ',' + r_q + '\t' + str(conf) + '\n')
                 #### extract type4 rules
                 elif rule_type == 4:
