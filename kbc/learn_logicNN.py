@@ -95,7 +95,11 @@ parser.add_argument(
     help="Rule type for injection:\n\t0: combine entailment and composition \n\t1: entailment \n\t4: type 4(composition)"
 )
 parser.add_argument(
-    '--mu', default=0.1, type=float,
+    '--mu_1', default=0.1, type=float,
+    help="weight for the teacher (rules)"
+)
+parser.add_argument(
+    '--mu_2', default=0.1, type=float,
     help="weight for the teacher (rules)"
 )
 
@@ -140,7 +144,7 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     r_p = int(tokens[0].split(',')[0])
                     r_q = int(tokens[0].split(',')[1])
                     conf = float(tokens[1])
-                    # if conf < 0.9 and conf >= 0.8:
+                    # if 0.9 <= conf < 1.0:
                     # if conf == 1.0:
                     rule_list.append((r_p, r_q, conf, flag))
                 else:
@@ -183,7 +187,7 @@ if args.model == 'InjEx' or args.model == 'ComplEx_logicNN':
 model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-    'InjEx': lambda: InjEx(dataset.get_shape(), args.rank, rule_list, args.init, args.mu, args.rule_type),
+    'InjEx': lambda: InjEx(dataset.get_shape(), args.rank, rule_list, args.init, args.mu_1, args.mu_2, args.rule_type),
     'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
     'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
 }[args.model]()
@@ -207,7 +211,8 @@ optim_method = {
 #### InjEx
 ## set mu value
 if args.model == 'InjEx':
-    init_mu = model.mu
+    init_mu_1 = model.mu_1
+    init_mu_2 = model.mu_2
 
 ## load in a pretrained model (use the pre-trained embeddings)
 # (old_model, old_data) = torch.load('saved_models/2021-09-01_21-13-27_FB237_ComplEx.pkl')
@@ -237,7 +242,8 @@ curve = {'train': [], 'valid': [], 'test': []}
 for e in range(args.max_epochs):
     if (e == 30) or (e == 70):
         if isinstance(optimizer.model, InjEx):
-            model.mu = 2 * model.mu
+            model.mu_1 = 2 * model.mu_1
+            model.mu_2 = 2 * model.mu_2
     cur_loss = optimizer.epoch(examples, args.rule_type)
 
     if (e) % args.valid == 0:
@@ -260,14 +266,14 @@ now = datetime.now()
 time_stamp = str(now)[:19].replace(':','-').replace(' ', '_')
 # write relation embeddings of each rule at the end
 if isinstance(optimizer.model, InjEx):
-    all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_real_compare' + '.txt'
-    all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '_img_compare' + '.txt'
-    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_mu_' + str(init_mu) + '.pkl'
+    all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_rule_' + str(args.rule_type) + '_real_compare' + '.txt'
+    all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_rule_' + str(args.rule_type) + '_img_compare' + '.txt'
+    model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '_rule_' + str(args.rule_type) + '.pkl'
 else:
     all_rules_real_path = time_stamp + '_' + args.dataset + '_' + args.model + '_real_compare' + '.txt'
     all_rules_img_path = time_stamp + '_' + args.dataset + '_' + args.model + '_img_compare' + '.txt'
     model_path = '/home/ComplEx-Inject/saved_models/' + time_stamp + '_' + args.dataset + '_' + args.model + '.pkl'
 
 results = dataset.eval(model, 'test', -1)
-# torch.save((model,dataset), model_path)
+torch.save((model,dataset), model_path)
 print("\n\nTEST : ", results)

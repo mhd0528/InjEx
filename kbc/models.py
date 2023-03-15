@@ -192,7 +192,8 @@ class InjEx(KBCModel):
             self, sizes: Tuple[int, int, int], rank: int,
             rule_list: list, 
             init_size: float = 1e-3, 
-            mu: float = 0.1,
+            mu_1: float = 0.1,
+            mu_2: float = 0.1,
             rule_type: int = 0
     ):
         super(InjEx, self).__init__()
@@ -218,9 +219,10 @@ class InjEx(KBCModel):
         #     a=0, 
         #     b=self.rel_embedding_range
         # )
-        self.mu = mu
+        self.mu_1 = mu_1
+        self.mu_2 = mu_2
         self.rule_type = rule_type
-        print("======> mu value: " + str(self.mu))
+        print("======> mu value: {}, {}".format(self.mu_1, self.mu_2))
 
     def score(self, x):
         lhs = self.embeddings[0](x[:, 0])
@@ -314,7 +316,7 @@ class InjEx(KBCModel):
         #score *= self.mu
         # score = factor[0] * score
         # print (score)
-        return score * self.mu
+        return score * self.mu_1
     
     def get_rules_loss(self, rule_type, rule_list):
         if rule_type == 1:
@@ -339,9 +341,9 @@ class InjEx(KBCModel):
                 # print("rule grad exists?: " + str(r_q_im.requires_grad))
                 # real penalty
                 # rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_p_re - r_q_re)))
-                rule_score += self.mu * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_q_re - r_p_re)))
+                rule_score += self.mu_1 * torch.sum(torch.max(torch.zeros(self.rank).cuda(), (r_q_re - r_p_re)))
                 # imaginary penalty
-                rule_score += self.mu * torch.sum(torch.square(r_q_im - r_p_im) * conf).cuda() 
+                rule_score += self.mu_1 * torch.sum(torch.square(r_q_im - r_p_im) * conf).cuda() 
 
             rule_score /= len(rule_list)
             # rule_score *= self.mu
@@ -351,7 +353,7 @@ class InjEx(KBCModel):
         if rule_type == 4:
             ## Re(tail) > 1/R * Re(head_i)
             ## Im(tail) == 1/R * Im(head_i)
-            head_para = math.sqrt(self.rel_embedding_range * self.rank)
+            # head_para = math.sqrt(self.rel_embedding_range * self.rank)
             ## get embeddings for all head and tail relations
             ## head relations ebd are combined using element-wise multiply
             rel = self.embeddings[1]
@@ -374,10 +376,10 @@ class InjEx(KBCModel):
                 # print("rule grad exists?: " + str(r_q_im.requires_grad))
                 # real penalty
                 # rule_score += self.mu * conf * torch.sum(torch.square(head_re - tail_re)).cuda()
-                rule_score += self.mu * conf * torch.sum(torch.max(torch.zeros(self.rank).cuda(), head_re - tail_re))
+                rule_score += self.mu_2 * conf * torch.sum(torch.max(torch.zeros(self.rank).cuda(), head_re - tail_re))
                 # imaginary penalty
                 # rule_score += self.mu * conf * torch.sum(torch.max(torch.zeros(self.rank).cuda(), tail_im - head_im))
-                rule_score += self.mu * conf * torch.sum(torch.square(tail_im - head_im)).cuda()
+                rule_score += self.mu_2 * conf * torch.sum(torch.square(tail_im - head_im)).cuda()
 
             rule_score /= len(rule_list)
             # rule_score *= self.mu

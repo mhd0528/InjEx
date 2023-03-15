@@ -7,12 +7,13 @@ import os
 # rule_path = './rules/NELL-one'
 # rule_path = './rules/Wiki-one'
 # rule_path = './rules/FB237-target'
-rule_path = './rules/Yago'
+# rule_path = './rules/Yago'
+rule_path = './rules/wikidata'
 # out_path = './'
-rule_type = 4
+rule_type = 0
 
-time_list = ['rules-10', 'rules-50', 'rules-100']
-out_f = open(os.path.join(rule_path, 'AnyBurl_cons-type_4.txt'), 'w')
+time_list = ['rules-10', 'rules-50', 'rules-100', 'rules-500', 'rules-1000']
+out_f = open(os.path.join(rule_path, 'AnyBurl_cons-type_0.txt'), 'w')
 r_set = set()
 for t in time_list:
     with open(os.path.join(rule_path, t)) as f:

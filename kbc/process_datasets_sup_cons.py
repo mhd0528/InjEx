@@ -4,6 +4,9 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+'''
+Preprocessing for NELL-One and Wiki-One (few-shot) datasets
+'''
 import pkg_resources
 import os
 import errno

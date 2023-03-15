@@ -4,6 +4,9 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+'''
+Preprocessing for FB, YAGO and WN datasets (not few-shot exps, don't have support files)
+'''
 import pkg_resources
 import os
 import errno
@@ -19,7 +22,7 @@ from collections import defaultdict
 # DATA_PATH = './data/'
 DATA_PATH = Path('/blue/daisyw/ma.haodi/ComplEx-Inject/kbc/data')
 
-def translate_cons(dataset, path, train_data, rule_type = 1):
+def translate_cons(dataset, path, train_data, rule_type = 0):
     if rule_type == 1:
         rel2id = {}
         with open(str(DATA_PATH) + '/' + dataset+'/rel_id') as f:
@@ -38,8 +41,8 @@ def translate_cons(dataset, path, train_data, rule_type = 1):
                 if '-' in body:
                     prefix = '-'
                     body = body[1:]
-                # if 0.9 > float(conf) >= 0.5:
-                if float(conf) >= 0.8:
+                if float(conf) >= 0.5:
+                # if float(conf) >= 0.8:
                     try:
                         rule = prefix + str(rel2id[body])+','+str(rel2id[head])
                         out.write('%s\t%s\n' % (rule,conf))
@@ -237,7 +240,7 @@ def prepare_dataset(path, name):
     out.close()
     
     # translate rules
-    translate_cons(name, path, examples, 1)
+    translate_cons(name, path, examples, 0)
 
 
 if __name__ == "__main__":

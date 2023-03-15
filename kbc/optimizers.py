@@ -84,7 +84,7 @@ class KBCOptimizer(object):
                 # constraint on entity embeddings, should be used for InjEx and ComplEx_logicNN with entailment rules
                 # round only entity embeddings, only < 0 or > 1, others stay the same
                 # if rule_type == 0:
-                if isinstance(self.model, models.InjEx) or isinstance(self.model, models.ComplEx_logicNN):
+                if isinstance(self.model, models.InjEx):# or isinstance(self.model, models.ComplEx_logicNN):
                     # print("clamping entity embeddeing constraint")
                     self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
                     self.model.embeddings[1].weight.data = self.model.embeddings[1].weight.data.clamp(1e-3, 1)
@@ -97,6 +97,7 @@ class KBCOptimizer(object):
                 b_cnt += 1
                 bar.update(input_batch.shape[0])
                 if isinstance(self.model, models.InjEx):
-                    bar.set_postfix(loss=f'{l.item():.3f}', mu=self.model.mu)
+                    # bar.set_postfix(loss=f'{l.item():.3f}', mu=self.model.mu)
+                    bar.set_postfix(loss=f'{l.item():.3f}')
                 else:
                     bar.set_postfix(loss=f'{l.item():.3f}')
