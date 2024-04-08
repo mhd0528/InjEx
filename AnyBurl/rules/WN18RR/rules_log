@@ -1,15 +1,15 @@
 Logfile
 ~~~~~~~
 
-indexing dataset: /home/haodi/ComplEx-Inject/AnyBurl/datasets/WN18RR/train
-time elapsed: 386ms
+indexing dataset: /blue/daisyw/ma.haodi/ComplEx-Inject/AnyBurl/datasets/WN18RR/train_all
+time elapsed: 779ms
 
 SINGLE_RELATIONS = null
-PATH_TRAINING = /home/haodi/ComplEx-Inject/AnyBurl/datasets/WN18RR/train
+PATH_TRAINING = /blue/daisyw/ma.haodi/ComplEx-Inject/AnyBurl/datasets/WN18RR/train_all
 CONSTANTS_OFF = false
 PATH_OUTPUT = rules/WN18RR/rules
 PATH_DICE = null
-SNAPSHOTS_AT = 10 50 100 
+SNAPSHOTS_AT = 10 50 100 500 1000 
 SAMPLE_SIZE = 2000
 TRIAL_SIZE = 1000000
 BATCH_TIME = 1000
@@ -33,15 +33,29 @@ EXCLUDE_AC2_RULES = false
 
 
 rule file: rules/WN18RR/rules-10
-zero: 13312
-cyclic: 32 | 248 | 253 | 
-acyclic: 14674 | time planned: 10s
+zero: 10283
+cyclic: 34 | 208 | 227 | 
+acyclic: 13323 | time planned: 10s
 time elapsed: 11s
 
 
 rule file: rules/WN18RR/rules-50
-zero: 13312
-cyclic: 32 | 285 | 646 | 
-acyclic: 33909 | time planned: 50s
+zero: 10283
+cyclic: 34 | 272 | 597 | 
+acyclic: 29515 | time planned: 50s
 time elapsed: 51s
+
+
+rule file: rules/WN18RR/rules-100
+zero: 10283
+cyclic: 34 | 298 | 880 | 
+acyclic: 40385 | time planned: 100s
+time elapsed: 101s
+
+
+rule file: rules/WN18RR/rules-500
+zero: 10283
+cyclic: 35 | 339 | 1491 | 
+acyclic: 59751 | time planned: 500s
+time elapsed: 501s
 

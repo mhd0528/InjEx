@@ -75,6 +75,7 @@ class KBCOptimizer(object):
                         # print("injecting multiple types of rules")
                         l_rule_constraint = self.model.get_rules_loss(1, self.model.rule_list[0])
                         l_rule_constraint += self.model.get_rules_loss(4, self.model.rule_list[1])
+                    # print(l_rule_constraint)
                     l += l_rule_constraint
 
                 
@@ -84,10 +85,10 @@ class KBCOptimizer(object):
                 # constraint on entity embeddings, should be used for InjEx and ComplEx_logicNN with entailment rules
                 # round only entity embeddings, only < 0 or > 1, others stay the same
                 # if rule_type == 0:
-                if isinstance(self.model, models.InjEx):# or isinstance(self.model, models.ComplEx_logicNN):
-                    # print("clamping entity embeddeing constraint")
-                    self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
-                    self.model.embeddings[1].weight.data = self.model.embeddings[1].weight.data.clamp(1e-3, 1)
+                # if isinstance(self.model, models.InjEx):# or isinstance(self.model, models.ComplEx_logicNN):
+                #     # print("clamping entity embeddeing constraint")
+                #     self.model.embeddings[0].weight.data = self.model.embeddings[0].weight.data.clamp(1e-3, 1)
+                #     self.model.embeddings[1].weight.data = self.model.embeddings[1].weight.data.clamp(1e-3, 1)
                         # with torch.no_grad():
                         #     for param in self.model.parameters():
                         #         if ((param.shape[0] == self.model.embeddings[0].num_embeddings)):

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ComplEx-WN18RR-all-Test
-#SBATCH --output=/blue/daisyw/ma.haodi/ComplEx-Inject/logs/WN18RR/ComplEx-WN18RR-all-1.out
+#SBATCH --output=/blue/daisyw/ma.haodi/ComplEx-Inject/logs/WN18RR/ComplEx-WN18RR-all-2.out
 #SBATCH --error=/blue/daisyw/ma.haodi/ComplEx-Inject/logs/WN18RR/ComplEx-WN18RR-all.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ma.haodi@ufl.edu
@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=4 # the number of CPUs allocated per task, i.e., number of threads in each process
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:1
-#SBATCH --mem=20gb
+#SBATCH --mem=10gb
 #SBATCH --time=72:00:00               # Time limit hrs:min:sec
 
 echo "starting job"

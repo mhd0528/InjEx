@@ -8,12 +8,12 @@ import os
 # rule_path = './rules/Wiki-one'
 # rule_path = './rules/FB237-target'
 # rule_path = './rules/Yago'
-rule_path = './rules/wikidata'
+rule_path = './rules/WN18RR'
 # out_path = './'
-rule_type = 0
+rule_type = 1
 
 time_list = ['rules-10', 'rules-50', 'rules-100', 'rules-500', 'rules-1000']
-out_f = open(os.path.join(rule_path, 'AnyBurl_cons-type_0.txt'), 'w')
+out_f = open(os.path.join(rule_path, 'AnyBurl_cons-type_' + str(rule_type) + '.txt'), 'w')
 r_set = set()
 for t in time_list:
     with open(os.path.join(rule_path, t)) as f:
@@ -22,7 +22,7 @@ for t in time_list:
             conf = float(conf)
             prefix = ''
             #### only extract rules with conf > 0.5
-            if conf > 0.0:
+            if conf > 0.5:
                 tail, head = rule.split(' <= ')
                 tail = tail[:-1]
                 head = head[:-1]
@@ -30,7 +30,7 @@ for t in time_list:
                 #     print(len(head.split(', ')))
                 #### only extract entailment rules
                 ## check entailment rule
-                if rule_type == 0:
+                if rule_type == 1:
                     if head == '' or len(head.split(', ')) != 1:
                         continue
                     ## check if is inverse rule

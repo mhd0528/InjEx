@@ -41,8 +41,8 @@ def translate_cons(dataset, path, train_data, rule_type = 1):
                 if '-' in body:
                     prefix = '-'
                     body = body[1:]
-                if float(conf) >= 0.5:
-                # if float(conf) >= 0.8:
+                # if float(conf) >= 1.0:
+                # if float(conf) >= 0.6:
                     try:
                         rule = prefix + str(rel2id[body])+','+str(rel2id[head])
                         out.write('%s\t%s\n' % (rule,conf))
@@ -95,7 +95,7 @@ def translate_cons(dataset, path, train_data, rule_type = 1):
         # read in rule set
         with open(os.path.join(path, 'AnyBurl_cons-type_4.txt')) as f, open(path+'/cons_4.txt','w') as out:
             for line in f:
-                rule, conf = line[:-1].split('\t')
+                rule, conf = line.replace('\n', '').split('\t')
                 rel_p, head = rule.split(' <= ')
                 rel_q, rel_r = head.split(',')
                 if float(conf) >= 0.0:

@@ -324,7 +324,7 @@ class InjEx(KBCModel):
             rel = self.embeddings[1]
             rule_score = 0
             for i, rule in enumerate(rule_list):
-                r_p, r_q, conf, r_dir = rule
+                r_q, r_p, conf, r_dir = rule
                 r_p = torch.LongTensor([r_p]).cuda()
                 r_q = torch.LongTensor([r_q]).cuda()
                 r_p_ebds = torch.transpose(rel(r_p), 0, 1)

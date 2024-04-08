@@ -120,6 +120,7 @@ r_num = dataset.get_shape()[1]
 print ("\n======> Number of entities and relations: " + str(ent_num) + ' ' + str(r_num))
 # print(dataset.get_shape())
 
+#### now all the rules (after read in) are r_q <= (r_p1, r_p2, ...), conf, direction_flag
 def rule_reader(dataset_path, rule_type, train_data, ent_num):
     if rule_type == 0:
         rule_list = []
@@ -145,8 +146,8 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
                     r_q = int(tokens[0].split(',')[1])
                     conf = float(tokens[1])
                     # if 0.9 <= conf < 1.0:
-                    # if conf == 1.0:
-                    rule_list.append((r_p, r_q, conf, flag))
+                    if conf >= 0.8:
+                        rule_list.append((r_q, r_p, conf, flag))
                 else:
                     break
         # rule_list = rule_list[:152]
@@ -172,7 +173,7 @@ def rule_reader(dataset_path, rule_type, train_data, ent_num):
 
 print("======> Checking model type: " + args.model)
 if args.model == 'InjEx' or args.model == 'ComplEx_logicNN':
-    print('model is complex-nne or ComplEx_logicNN')
+    print('model is complex-nne or InjEx')
     # extract rule info
     rule_list = rule_reader(dataset_path, args.rule_type, examples, dataset.get_shape()[0])
     if args.rule_type:
@@ -180,6 +181,7 @@ if args.model == 'InjEx' or args.model == 'ComplEx_logicNN':
         print((rule_list[0]))
     ## combination rule injection
     else:
+        # rule_list[0] = rule_list[0][:len(rule_list[0]) // 2 + 1]
         print ("\n======> Number of entailment rules: " + str(len(rule_list[0])))
         print ("\n======> Number of composition rules: " + str(len(rule_list[1])))
         print((rule_list[0][0]))
@@ -188,8 +190,8 @@ model = {
     'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
     'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
     'InjEx': lambda: InjEx(dataset.get_shape(), args.rank, rule_list, args.init, args.mu_1, args.mu_2, args.rule_type),
-    'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
-    'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
+    # 'ComplEx_logicNN': lambda: ComplEx_logicNN(dataset.get_shape(), args.rank, rule_list, args.init, 6, [], [0.95, 0]),
+    # 'ComplEx_supportNN': lambda: ComplEx_supportNN(sizes=dataset.get_shape(), rank=args.rank, init_size=args.init, mu=0.01, feas={}, sup=[])
 }[args.model]()
 
 device = 'cuda'
@@ -208,11 +210,6 @@ optim_method = {
 }[args.optimizer]()
 
 ######## preprocess for different models
-#### InjEx
-## set mu value
-if args.model == 'InjEx':
-    init_mu_1 = model.mu_1
-    init_mu_2 = model.mu_2
 
 ## load in a pretrained model (use the pre-trained embeddings)
 # (old_model, old_data) = torch.load('saved_models/2021-09-01_21-13-27_FB237_ComplEx.pkl')
@@ -239,11 +236,24 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
 
 cur_loss = 0
 curve = {'train': [], 'valid': [], 'test': []}
+#### InjEx
+## set mu value
+if args.model == 'InjEx':
+    init_mu_1 = model.mu_1
+    init_mu_2 = model.mu_2
 for e in range(args.max_epochs):
-    if (e == 30) or (e == 70):
-        if isinstance(optimizer.model, InjEx):
-            model.mu_1 = 2 * model.mu_1
-            model.mu_2 = 2 * model.mu_2
+    # if (e == 30) or (e == 70):
+    #     if isinstance(optimizer.model, InjEx):
+    #         model.mu_1 = 0.5 * model.mu_1
+    #         model.mu_2 = 0.5 * model.mu_2
+    if isinstance(optimizer.model, InjEx):
+        if (e == 10):
+            model.mu_1 = 0#.5 * model.mu_1
+            model.mu_2 = 0#.5 * model.mu_2
+        # elif (e == 80):
+        #     model.mu_1 = init_mu_1
+        #     model.mu_2 = init_mu_2
+
     cur_loss = optimizer.epoch(examples, args.rule_type)
 
     if (e) % args.valid == 0:
